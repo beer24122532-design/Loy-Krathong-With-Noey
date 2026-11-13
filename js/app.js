@@ -46,9 +46,9 @@ const FLAME_KEYS = Object.keys(FLAME_COLORS);
 
 /* ธีมฉากหลัง (id ต้องตรงกับ <svg> ใน index.html) */
 const SCENES = Object.freeze([
-  { id: "scene-temple", label: "วัดเจดีย์" },
-  { id: "scene-market", label: "ตลาดน้ำ" },
-  { id: "scene-port",   label: "เมืองท่า" },
+  { id: "scene-temple", label: "วัดเจดีย์", beam: { x: 520, y: 20 } },    // ยอดเจดีย์กลางฉาก
+  { id: "scene-market", label: "ตลาดน้ำ", beam: { x: 392, y: 120 } },    // ยอดศาลากลาง
+  { id: "scene-port",   label: "เมืองท่า", beam: { x: 1033, y: 62 } },   // ยอดประภาคาร
 ]);
 
 /* ---------------- Mood Moon: จันทร์สะท้อนใจเมือง ----------------
@@ -131,6 +131,7 @@ function cacheEls() {
     heartEmoji: $("#heart-emoji"), heartLabel: $("#heart-label"), heartTotal: $("#heart-total"),
     moon: $("#moon"), moonPopover: $("#moon-popover"), moonPopBody: $("#moon-pop-body"),
     scene: $("#scene"),
+    riverReflect: $("#river-reflect"), templeBeam: $("#temple-beam"),
   });
 }
 
@@ -493,6 +494,7 @@ async function handleSubmit(e) {
     sound.chime();
     showerFx?.(6, true);          // ดาวตกสีทองฉลองกระทงของเรา
     sendBoat(created);            // ขบวนลำตะกั่วถือป้ายคำอธิษฐานของเราออกเดิน (cooldown ใน sendBoat)
+    turtleFx?.(created);          // เต่ามารับขนมปังของเรา (ทำงานเฉพาะกระทงขนมปัง)
     requestAnimationFrame(() => spawnReleaseRipple(ref.id));
 
     try { localStorage.setItem("lk:ownerName", v.ownerName); } catch { /* เก็บแค่ชื่อที่ใช้ล่าสุด */ }
@@ -646,6 +648,7 @@ function announceNew(k) {
   showerFx?.(3, false);                           // ดาวตกชุดเล็กต้อนรับ
   lanternFx?.(2, (k.positionX / 100) * window.innerWidth);   // โคมลอยฟ้าเป็นชุดต้อนรับจากขอบฟ้า
   sendBoat(k);                                    // ขบวนลำตะกั่วถือป้ายคำอธิษฐานนี้ผ่านแม่น้ำ (cooldown ใน sendBoat)
+  turtleFx?.(k);                                  // เต่ามารับขนมปัง (ทำงานเฉพาะกระทงขนมปังเท่านั้น)
   tickerSay(`${k.ownerName} ขอให้ ${wishShort(k.wishMessage)}`);   // โชว์บนแถบวิ่งเมื่อเปิดจอโชว์
 }
 
@@ -1121,6 +1124,7 @@ function startAuth() {
 let showerFx = null;            // ฟังก์ชันปล่อยดาวตกชุด (เชื่อมจาก initScene)
 let lanternFx = null;           // ฟังก์ชันปล่อยโคมลอยฟ้าเป็นชุด
 let heartFx = null;             // ฟังก์ชันปล่อยหัวใจลอย (กำลังใจ)
+let turtleFx = null;            // ฟังก์ชันปล่อยเต่ามารับขนมปัง (เฉพาะกระทงขนมปัง)
 
 function initScene() {
   const starsCanvas = $("#stars-canvas");
@@ -1132,7 +1136,9 @@ function initScene() {
 
   let W = 0, H = 0, horizon = 0;
   let stars = [], lanterns = [], sparkles = [], meteors = [], fish = [], heartFxParts = [];
+  let turtles = [], bubbleFx = [], fireflies = [], comets = [];
   let nextMeteor = 4000, nextLanternBurst = 12000 + Math.random() * 10000;
+  let nextComet = 45000 + Math.random() * 20000;   // ดาวหางลูกแรกราว ๆ 45-65 วิ
   let moon = { x: 0, y: 0, r: 40 };
   let last = performance.now();
 
@@ -1298,6 +1304,226 @@ function initScene() {
     fctx.restore();
   }
 
+  /* ---------------- เต่าน้ำจืดมารับขนมปัง (เฉพาะกระทง "ขนมปังรักษ์ปลา") ---------------- */
+  function spawnTurtleFor(k) {
+    if (reduceMotion) return;
+    if (!k || k.krathongType !== "bread") return;      // เต่าสนใจแค่ขนมปัง
+    if (turtles.filter((tr) => tr.phase !== "dive").length >= 2) return;   // กันเต่าล้นจอ
+    const el = state.rendered.get(k.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.right < -60 || r.left > W + 60 || r.top < 0 || r.bottom > H) return;   // นอกจอ
+    const fromLeft = r.left > W / 2;
+    turtles.push({
+      phase: "approach",
+      kId: k.id,
+      x: fromLeft ? W + 70 : -70,
+      y: r.top + r.height * 0.55,
+      size: 26 + Math.random() * 12,
+      dir: fromLeft ? -1 : 1,          // ทิศหัวเต่า
+      tx: (r.left + r.right) / 2,
+      ty: r.top + r.height * 0.55,
+      alpha: 0.88,
+      timer: 0,
+      skip: 0,                          // นับเฟรมก่อนอ่านตำแหน่งกระทงใหม่
+      bob: Math.random() * Math.PI * 2,
+    });
+  }
+
+  function drawTurtle(tr, t) {
+    const s = tr.size;
+    fctx.save();
+    fctx.translate(tr.x, tr.y + Math.sin(t * 0.0022 + tr.bob) * 2.5);
+    fctx.scale(tr.dir, 1);
+    fctx.globalAlpha = tr.alpha * 0.9;
+    // เงาน้ำใต้เต่า
+    fctx.fillStyle = "rgba(8, 10, 40, .35)";
+    fctx.beginPath();
+    fctx.ellipse(0, s * 0.34, s * 0.72, s * 0.16, 0, 0, Math.PI * 2);
+    fctx.fill();
+    // ครีบหน้า-หลังแกว่ง
+    const fl = Math.sin(t * 0.008 + tr.bob) * 0.5;
+    fctx.fillStyle = "#2f7d4f";
+    fctx.beginPath();
+    fctx.ellipse(s * 0.52, s * 0.05 + fl * 2, s * 0.2, s * 0.09, fl * 0.5 - 0.5, 0, Math.PI * 2);
+    fctx.fill();
+    fctx.beginPath();
+    fctx.ellipse(-s * 0.5, s * 0.06 - fl * 2, s * 0.18, s * 0.08, 0.5 - fl * 0.5, 0, Math.PI * 2);
+    fctx.fill();
+    // หัว
+    fctx.fillStyle = "#3d9a63";
+    fctx.beginPath();
+    fctx.ellipse(s * 0.72, -s * 0.08, s * 0.16, s * 0.12, 0, 0, Math.PI * 2);
+    fctx.fill();
+    // กระดอง
+    fctx.fillStyle = "#2c6b45";
+    fctx.beginPath();
+    fctx.ellipse(0, 0, s * 0.5, s * 0.3, 0, 0, Math.PI * 2);
+    fctx.fill();
+    // ลายกระดอง
+    fctx.strokeStyle = "rgba(220, 255, 200, .5)";
+    fctx.lineWidth = 1.2;
+    fctx.beginPath();
+    fctx.ellipse(0, 0, s * 0.34, s * 0.19, 0, 0, Math.PI * 2);
+    fctx.stroke();
+    fctx.beginPath();
+    fctx.moveTo(-s * 0.34, 0); fctx.lineTo(s * 0.34, 0);
+    fctx.moveTo(0, -s * 0.19); fctx.lineTo(0, s * 0.19);
+    fctx.stroke();
+    // ดวงตา
+    fctx.fillStyle = "rgba(255, 246, 220, .85)";
+    fctx.beginPath();
+    fctx.arc(s * 0.78, -s * 0.11, Math.max(0.9, s * 0.035), 0, Math.PI * 2);
+    fctx.fill();
+    fctx.restore();
+  }
+
+  function updateTurtles(dt, t) {
+    for (let i = turtles.length - 1; i >= 0; i--) {
+      const tr = turtles[i];
+      // อ่านตำแหน่งกระทงเป้าหมายทุก ~12 เฟรม (ไม่แตะ DOM ทุกเฟรม)
+      if (tr.phase !== "dive" && --tr.skip <= 0) {
+        tr.skip = 12;
+        const el = state.rendered.get(tr.kId);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          tr.tx = (r.left + r.right) / 2;
+          tr.ty = r.top + r.height * 0.55;
+        } else {
+          tr.phase = "dive";               // กระทงหายไปจากจอแล้ว
+        }
+      }
+      if (tr.phase === "approach") {
+        const dx = tr.tx - tr.x, dy = tr.ty - tr.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 30) {
+          tr.phase = "eat";
+          tr.timer = 1500 + Math.random() * 700;
+          sound.bloop();                   // เสียงบลุบเบา ๆ ตอนโผล่หัว
+          for (let b = 0; b < 5; b++) {    // ฟองน้ำ + เศษขนมปัง
+            bubbleFx.push({
+              x: tr.tx + (Math.random() * 2 - 1) * 14,
+              y: tr.ty - 6,
+              vx: (Math.random() * 2 - 1) * 0.25,
+              vy: -(0.25 + Math.random() * 0.4),
+              life: 40 + Math.random() * 25,
+              r: 1 + Math.random() * 2,
+            });
+          }
+        } else {
+          tr.x += (dx / dist) * 2.2 * dt;
+          tr.y += (dy / dist) * 0.6 * dt;
+          tr.dir = tr.tx >= tr.x ? 1 : -1;
+        }
+      } else if (tr.phase === "eat") {
+        tr.timer -= dt * 16.67;
+        if (tr.timer <= 0) tr.phase = "dive";
+      } else {                             // dive — ดำลงน้ำแล้วจางหาย
+        tr.y += 0.55 * dt;
+        tr.alpha -= 0.014 * dt;
+        if (tr.alpha <= 0) { turtles.splice(i, 1); continue; }
+      }
+      drawTurtle(tr, t);
+    }
+    // ฟองน้ำจิ๋วจากการกินขนมปัง
+    for (let i = bubbleFx.length - 1; i >= 0; i--) {
+      const b = bubbleFx[i];
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      if (b.life <= 0) { bubbleFx.splice(i, 1); continue; }
+      fctx.globalAlpha = clamp(b.life / 30, 0, 1) * 0.5;
+      fctx.strokeStyle = "rgba(210, 235, 255, .9)";
+      fctx.lineWidth = 1;
+      fctx.beginPath();
+      fctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      fctx.stroke();
+    }
+    fctx.globalAlpha = 1;
+  }
+
+  /* ---------------- หิ่งห้อยริมน้ำ (แถบขอบฟ้า/ผิวน้ำแถวฝั่ง) ---------------- */
+  function makeFirefly() {
+    const edgeBand = Math.random() < 0.55;     // ส่วนใหญ่แถบริมฝั่งเหนือขอบฟ้าเล็กน้อย
+    return {
+      cx: Math.random() * W,
+      cy: edgeBand
+        ? horizon - (4 + Math.random() * 46)
+        : horizon + (8 + Math.random() * 36),
+      r: 5 + Math.random() * 14,               // รัศมีวนเล็ก ๆ
+      orbit: Math.random() * Math.PI * 2,
+      orbitSpeed: 0.0006 + Math.random() * 0.001,
+      blink: Math.random() * Math.PI * 2,
+      blinkSpeed: 0.0016 + Math.random() * 0.0026,
+      size: 1.1 + Math.random() * 1.3,
+      green: Math.random() < 0.6,
+    };
+  }
+
+  function drawFireflies(t) {
+    for (const ff of fireflies) {
+      const a = Math.sin(t * ff.blinkSpeed + ff.blink) ** 2;   // กะพริบนุ่ม ๆ
+      if (a < 0.06) continue;
+      const x = ff.cx + Math.cos(t * ff.orbitSpeed + ff.orbit) * ff.r;
+      const y = ff.cy + Math.sin(t * ff.orbitSpeed + ff.orbit) * ff.r * 0.5;
+      const col = ff.green ? "168, 255, 140" : "255, 232, 150";
+      const glowR = ff.size * 5;
+      const g = fctx.createRadialGradient(x, y, 0, x, y, glowR);
+      g.addColorStop(0, `rgba(${col}, ${(0.5 * a).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${col}, 0)`);
+      fctx.fillStyle = g;
+      fctx.beginPath();
+      fctx.arc(x, y, glowR, 0, Math.PI * 2);
+      fctx.fill();
+      fctx.fillStyle = `rgba(${col}, ${a.toFixed(3)})`;
+      fctx.beginPath();
+      fctx.arc(x, y, ff.size, 0, Math.PI * 2);
+      fctx.fill();
+    }
+  }
+
+  /* ---------------- ดาวหางหางยาว (โคจรผ่านฟ้าทุก ~2-4 นาที) ---------------- */
+  function spawnComet() {
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    comets.push({
+      x: dir > 0 ? -40 : W + 40,
+      y: horizon * (0.1 + Math.random() * 0.25),
+      vx: dir * (2.0 + Math.random() * 1.2),
+      vy: 0.35 + Math.random() * 0.45,
+      trail: [],
+    });
+  }
+
+  function updateComets(dt) {
+    for (let i = comets.length - 1; i >= 0; i--) {
+      const c = comets[i];
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      c.trail.push({ x: c.x, y: c.y });
+      if (c.trail.length > 36) c.trail.shift();
+      if (c.y > horizon + 30 || c.x < -300 || c.x > W + 300) { comets.splice(i, 1); continue; }
+      // หางยาวจางลงย้อนหลัง
+      fctx.lineCap = "round";
+      for (let j = 0; j < c.trail.length - 1; j++) {
+        const p0 = c.trail[j], p1 = c.trail[j + 1];
+        const f = (j + 1) / c.trail.length;
+        fctx.strokeStyle = `rgba(255, 238, 190, ${(f * f * 0.55).toFixed(3)})`;
+        fctx.lineWidth = 1 + f * 2.6;
+        fctx.beginPath();
+        fctx.moveTo(p0.x, p0.y);
+        fctx.lineTo(p1.x, p1.y);
+        fctx.stroke();
+      }
+      // หัวดาวหางเรืองแสง
+      const hg = fctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 16);
+      hg.addColorStop(0, "rgba(255, 250, 225, .9)");
+      hg.addColorStop(0.4, "rgba(255, 226, 150, .35)");
+      hg.addColorStop(1, "rgba(255, 226, 150, 0)");
+      fctx.fillStyle = hg;
+      fctx.beginPath();
+      fctx.arc(c.x, c.y, 16, 0, Math.PI * 2);
+      fctx.fill();
+    }
+  }
+
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
@@ -1332,6 +1558,8 @@ function initScene() {
     lanterns = Array.from({ length: lanternCount }, () => makeLantern(true));
     sparkles = Array.from({ length: Math.round(W / 7) }, makeSparkle);
     fish = Array.from({ length: W < 640 ? 3 : 6 }, () => makeFish({ initial: true }));
+    fireflies = Array.from({ length: W < 640 ? 10 : 18 }, makeFirefly);
+    turtles = []; bubbleFx = []; comets = [];   // วัตถุชั่วคราวรีเซ็ตตามขนาดจอ
   }
 
   function drawStars(t) {
@@ -1481,6 +1709,14 @@ function initScene() {
       nextLanternBurst = 20000 + Math.random() * 18000;
     }
     updateHeartFx(dt);
+    updateTurtles(dt, t);
+    drawFireflies(t);
+    nextComet -= dtMs;
+    if (nextComet <= 0) {
+      spawnComet();
+      nextComet = 120000 + Math.random() * 120000;   // ลูกถัดไป ~2-4 นาที
+    }
+    updateComets(dt);
     if (!document.hidden) requestAnimationFrame(frame);
   }
 
@@ -1496,6 +1732,7 @@ function initScene() {
   showerFx = shower;
   lanternFx = lanternBurst;
   heartFx = heartBurst;
+  turtleFx = spawnTurtleFor;        // เต่ามารับขนมปัง (เชื่อมจาก initScene)
   resize();
   if (reduceMotion) {
     drawStars(0);
@@ -1503,6 +1740,7 @@ function initScene() {
     drawSparkles(1000);
     lanterns.forEach((l) => drawLantern(l, 0));
     fish.forEach((f) => drawFish(f, 0));
+    drawFireflies(1200);            // หิ่งห้อยจุดเรืองแบบนิ่ง (reduced-motion)
   } else {
     requestAnimationFrame(frame);
   }
@@ -1590,6 +1828,22 @@ const sound = (() => {
       const c = ac(); if (!c) return;
       const f = 620 + Math.random() * 160;
       tone(f, c.currentTime, 0.10, 0.38, f * 1.5, 0.12);
+    },
+    // เสียง "บลุบ" เบา ๆ — เต่าโผล่ขึ้นมารับขนมปัง
+    bloop() {
+      const c = ac(); if (!c) return;
+      const t = c.currentTime + 0.02;
+      tone(300, t, 0.12, 0.16, 130, 0.14);
+      const src = c.createBufferSource();
+      src.buffer = noiseBuffer(c, 0.12);
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 900;
+      const g = c.createGain();
+      env(g, t, 0.05, 0.12);
+      src.connect(lp).connect(g).connect(master);
+      src.start(t);
+      src.stop(t + 0.12);
     },
     // เสียงฉ่อง — เสียงฉาบทองต้อนรับขบวนเรือลำตะกั่ว
     chong() {
@@ -1942,6 +2196,39 @@ function applyScene() {
     document.getElementById(s.id)?.toggleAttribute("hidden", s.id !== scene.id);
   });
   if (els.sceneToggle) els.sceneToggle.textContent = `ฉาก: ${scene.label}`;
+  syncRiverReflect(scene.id);      // เงาวัดสะท้อนผิวน้ำ
+  positionTempleBeam();            // ลำแสงประภาคารจากยอดหอ
+}
+
+/** เงาวัดสะท้อนผิวน้ำ — คัดลอกเนื้อ svg ของฉากที่ใช้งานอยู่ลงกล่องกลับหัวบนผิวน้ำ */
+function syncRiverReflect(sceneId) {
+  if (!els.riverReflect) return;
+  const active = document.getElementById(sceneId);
+  if (!active) return;
+  const sv = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  sv.setAttribute("viewBox", "0 0 1200 240");
+  sv.setAttribute("preserveAspectRatio", "xMidYMax slice");
+  sv.classList.add("river-reflect-svg");
+  sv.setAttribute("aria-hidden", "true");
+  for (const child of Array.from(active.children)) sv.append(child.cloneNode(true));
+  els.riverReflect.replaceChildren(sv);
+}
+
+/** ลำแสงประภาคาร — คำนวณจุดยอดหอจาก viewBox ของฉากที่ใช้งาน (แม่นยำทุกขนาดจอ) */
+function positionTempleBeam() {
+  if (!els.templeBeam) return;
+  const scene = SCENES[state.sceneIndex] || SCENES[0];
+  const active = document.getElementById(scene.id);
+  if (!active || !scene.beam) { els.templeBeam.style.display = "none"; return; }
+  const r = active.getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) { els.templeBeam.style.display = "none"; return; }
+  // คณิตเดียวกับ preserveAspectRatio="xMidYMax slice"
+  const scale = Math.max(r.width / 1200, r.height / 240);
+  const offX = (r.width - 1200 * scale) / 2;
+  const offY = r.height - 240 * scale;
+  els.templeBeam.style.display = "";
+  els.templeBeam.style.left = `${Math.round(r.left + offX + scene.beam.x * scale)}px`;
+  els.templeBeam.style.top = `${Math.round(r.top + offY + scene.beam.y * scale)}px`;
 }
 
 function cycleScene() {
@@ -2061,6 +2348,17 @@ function init() {
   cacheEls();
   initScene();
   scheduleBoat(true);   // นัดขบวนเรือลำตะกั่วลำแรก (~26-50 วิ หลังเปิดหน้า)
+  // เต่าตัวแรก: ถ้ามีกระทงขนมปังลอยอยู่แล้ว ให้ออกเดินราว ๆ 12 วิหลังเปิดหน้า
+  state.timers.breadCheck = setTimeout(() => {
+    for (const k of state.data.values()) {
+      if (k?.krathongType === "bread") { turtleFx?.(k); break; }
+    }
+  }, 12000);
+  // เลื่อนลำแสงเจดีย์ตามขนาดจอ
+  window.addEventListener("resize", () => {
+    clearTimeout(state.timers.beam);
+    state.timers.beam = setTimeout(positionTempleBeam, 180);
+  });
   restoreFlame();
   buildTypePicker();
   buildFlamePicker();
