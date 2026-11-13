@@ -133,6 +133,8 @@ const state = {
   flameColor: "gold",        // สีแสงเทียนของกระทงใหม่ (จำไว้ใน lk:flame)
   sceneIndex: 0,             // ธีมฉากปัจจุบัน (จำไว้ใน lk:scene)
   skyNight: 1,               // ความมืดของคืน 0-1 (ฟ้าเปลี่ยนสีตามเวลาจริง — ใกล้รุ่งดาวจาง)
+  trailsMode: false,         // โหมดถ่ายภาพนาทีชั่ว — ดาววาดรอยโค้งรอบดาวเหนือ
+  trailsT0: 0,               // เวลาเริ่มรอยโค้ง (performance.now())
   unsub: {},
   timers: {},
   retry: {},
@@ -1202,10 +1204,13 @@ function initScene() {
   let stars = [], lanterns = [], sparkles = [], meteors = [], fish = [], heartFxParts = [];
   let turtles = [], bubbleFx = [], fireflies = [], comets = [];
   let leapers = [], splashFx = [], dropFx = [], moths = [];   // ปลาโลด / วงน้ำ / หยดน้ำ / มอธ
+  let smokeFx = [], smokeSrc = [], escapes = [], cityLights = [];   // ควันธูป / โคมหลุดสาย / ไฟเมืองไกล
   let nextMeteor = 4000, nextLanternBurst = 12000 + Math.random() * 10000;
   let nextComet = 45000 + Math.random() * 20000;   // ดาวหางลูกแรกราว ๆ 45-65 วิ
   let nextLeap = 7000 + Math.random() * 8000;      // ปลาโลดกระโดดลูกแรก
   let nextMoth = 9000 + Math.random() * 10000;     // มอธตัวแรก
+  let nextSmoke = 8000 + Math.random() * 8000;     // ควันธูปก้อนแรก
+  let nextLooseLantern = 50000 + Math.random() * 50000;   // โคมหลุดสายลูกแรก ~50-100 วิ
   let moon = { x: 0, y: 0, r: 40 };
   let last = performance.now();
 
@@ -1328,12 +1333,21 @@ function initScene() {
       x: opts.initial ? Math.random() * W : (dir > 0 ? -size * 2 : W + size * 2),
       y: horizon + 30 + depth * (H - horizon - 70),
       vx: 0.08 + size * 0.004 + Math.random() * 0.08,   // ช้า ๆ ~8–18 px/s
+      fleeV: 0,                                         // ความเร็ววิ่งหนีชั่วคราว (ฝูงปลาตกใจ)
       alpha: 0.5 - depth * 0.3,                        // ยิ่งลึกยิ่งจาง
       phase: Math.random() * Math.PI * 2,
       bobSpeed: 0.0006 + Math.random() * 0.0006,
       bobAmp: 3 + Math.random() * 4,
       wagSpeed: 0.006 + Math.random() * 0.004,
     };
+  }
+
+  // ฝูงปลาตกใจ — พุ่งหนีออกจากจุดที่ปลาโลดกระโดด
+  function scareFish(px) {
+    for (const f of fish) {
+      if (Math.abs(f.x - px) > W * 0.22) continue;
+      f.fleeV = (f.x <= px ? -1 : 1) * (2.2 + Math.random() * 1.6);
+    }
   }
 
   function drawFish(f, t) {
@@ -1606,6 +1620,7 @@ function initScene() {
     });
     splashAt(x0, y0, 16 + Math.random() * 8);    // วงน้ำตอนพุ่งขึ้นจากน้ำ
     heronNotice(x0);                             // นกยางโม่มองตามปลาที่โผล่พ้นน้ำ
+    scareFish(x0);                               // ฝูงปลาตกใจวิ่งหนี
   }
 
   function splashAt(x, y, r0) {
@@ -1657,6 +1672,7 @@ function initScene() {
         splashAt(f.x, f.y0, f.size * 1.1);
         sound.plop();
         heronNotice(f.x);                        // นกจ้องจุดที่ปลาตกกลับลงน้ำ
+        scareFish(f.x);                          // ฝูงปลากระจายหนีอีกรอบ
         leapers.splice(i, 1);
       }
     }
@@ -1768,6 +1784,132 @@ function initScene() {
     }
   }
 
+  /* ---------------- โคมหลุดสายลอยขึ้นฟ้า (ฉากตลาดน้ำ) ---------------- */
+  function spawnLooseLantern() {
+    if (state.sceneIndex !== 1 || escapes.length) return;      // เฉพาะตลาดน้ำ ครั้งละ 1 ลูก
+    const svg = document.getElementById("scene-market");
+    if (!svg || svg.hidden) return;
+    const lamps = Array.from(svg.querySelectorAll(".temple-lights circle"))
+      .filter((c) => Number(c.getAttribute("cy")) < 210);       // เฉพาะโคมที่แขวนบนหลังคา
+    if (!lamps.length) return;
+    const c = lamps[(Math.random() * lamps.length) | 0];
+    const r = c.getBoundingClientRect();
+    if (r.width < 1 && r.height < 1) return;
+    escapes.push({
+      x: r.left + r.width / 2, y: r.top + r.height / 2,
+      vy: -(0.55 + Math.random() * 0.3),
+      size: 9 + Math.random() * 5,
+      pink: Math.random() < 0.4,
+      sway: Math.random() * Math.PI * 2,
+      swaySpeed: 0.008 + Math.random() * 0.006,
+      swayAmp: 0.35 + Math.random() * 0.3,
+      age: 0,
+    });
+  }
+
+  function drawEscapeLantern(l, alpha) {
+    const glowR = l.size * 3;
+    const g = fctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, glowR);
+    g.addColorStop(0, l.pink ? `rgba(255,150,210,${0.4 * alpha})` : `rgba(255,190,90,${0.4 * alpha})`);
+    g.addColorStop(1, "rgba(255,140,60,0)");
+    fctx.fillStyle = g;
+    fctx.beginPath();
+    fctx.arc(l.x, l.y, glowR, 0, Math.PI * 2);
+    fctx.fill();
+    const w = l.size, h = l.size * 1.25;
+    const body = fctx.createLinearGradient(l.x, l.y - h / 2, l.x, l.y + h / 2);
+    body.addColorStop(0, l.pink ? `rgba(240,90,160,${alpha})` : `rgba(230,100,40,${alpha})`);
+    body.addColorStop(1, `rgba(255,232,160,${alpha})`);
+    fctx.fillStyle = body;
+    fctx.beginPath();
+    fctx.moveTo(l.x - w * 0.5, l.y - h / 2);
+    fctx.lineTo(l.x + w * 0.5, l.y - h / 2);
+    fctx.lineTo(l.x + w * 0.36, l.y + h / 2);
+    fctx.lineTo(l.x - w * 0.36, l.y + h / 2);
+    fctx.closePath();
+    fctx.fill();
+    fctx.fillStyle = `rgba(255,250,220,${alpha})`;
+    fctx.beginPath();
+    fctx.arc(l.x, l.y + h / 2 - 1, Math.max(1, w * 0.12), 0, Math.PI * 2);
+    fctx.fill();
+  }
+
+  function updateEscapeLanterns(dt) {
+    for (let i = escapes.length - 1; i >= 0; i--) {
+      const l = escapes[i];
+      l.age += dt;
+      l.sway += l.swaySpeed * dt;
+      l.y += l.vy * dt;
+      l.x += Math.sin(l.sway) * l.swayAmp * dt;
+      const fadeIn = clamp(l.age / 40, 0, 1);
+      const fadeOut = clamp((l.y - 20) / 110, 0, 1);   // ใกล้ยอดจอจางหาย
+      const alpha = fadeIn * fadeOut;
+      if (l.y < 20 || alpha <= 0.01) { escapes.splice(i, 1); continue; }
+      drawEscapeLantern(l, alpha);
+    }
+  }
+
+  /* ---------------- ควันธูปจาง ๆ ลอยขึ้นจากเปลวเทียนกระทง ---------------- */
+  function spawnSmokeSource() {
+    if (smokeSrc.length >= 2) return;            // กันควันท่วมจอ
+    const visible = [];
+    for (const [id, el] of state.rendered) {
+      const r = el.getBoundingClientRect();
+      if (r.right > -40 && r.left < W + 40) visible.push({ id, el });
+    }
+    if (!visible.length) return;
+    const pick = visible[(Math.random() * visible.length) | 0];
+    smokeSrc.push({
+      kId: pick.id,
+      cx: 0, cy: 0,
+      life: 6000 + Math.random() * 4000,
+      follow: 0,
+    });
+  }
+
+  function updateSmoke(dt, t) {
+    for (let i = smokeSrc.length - 1; i >= 0; i--) {
+      const s = smokeSrc[i];
+      s.life -= dt * 16.67;
+      if (--s.follow <= 0) {                     // ติดตามกระทงที่ล่องไปเรื่อย ๆ
+        s.follow = 30;
+        const el = state.rendered.get(s.kId);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          s.cx = (r.left + r.right) / 2 + 5;     // ยอดเทียนเยื้องขวาเล็กน้อย
+          s.cy = r.top + r.height * 0.26;
+        } else {
+          s.life = Math.min(s.life, 800);        // กระทงหาย → ควันเลิกปล่อย
+        }
+      }
+      if (s.life <= 0) { smokeSrc.splice(i, 1); continue; }
+      if (smokeFx.length < 42 && Math.random() < 0.12 * dt) {
+        smokeFx.push({
+          x: s.cx + (Math.random() * 3 - 1.5), y: s.cy,
+          vy: -(0.4 + Math.random() * 0.3),
+          drift: 0.08 + Math.random() * 0.12,
+          r: 2 + Math.random() * 2.5,
+          phase: Math.random() * Math.PI * 2,
+          life: 90 + Math.random() * 50,
+        });
+      }
+    }
+    for (let i = smokeFx.length - 1; i >= 0; i--) {
+      const p = smokeFx[i];
+      p.life -= dt;
+      p.y += p.vy * dt;
+      p.x += (p.drift + Math.sin(t * 0.0012 + p.phase) * 0.12) * dt;
+      p.r += 0.055 * dt;
+      if (p.life <= 0) { smokeFx.splice(i, 1); continue; }
+      fctx.globalAlpha = clamp(p.life / 60, 0, 1) * 0.1;
+      fctx.fillStyle = "rgba(226, 216, 235, .9)";
+      fctx.beginPath();
+      fctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      fctx.fill();
+    }
+    fctx.globalAlpha = 1;
+  }
+
   /* ---------------- นกยางโม่ริมน้ำ — เอี้ยวคอตามปลาโลดกระโดด ---------------- */
   let heronUntil = 0, heronLock = 0;
   function heronNotice(x) {
@@ -1845,10 +1987,30 @@ function initScene() {
     fireflies = Array.from({ length: W < 640 ? 10 : 18 }, makeFirefly);
     turtles = []; bubbleFx = []; comets = [];   // วัตถุชั่วคราวรีเซ็ตตามขนาดจอ
     leapers = []; splashFx = []; dropFx = []; moths = [];
+    smokeFx = []; smokeSrc = []; escapes = []; cityLights = [];
   }
 
   function drawStars(t) {
     sctx.clearRect(0, 0, W, H);
+    // โหมดถ่ายภาพนาทีชั่ว — ดาวทุกดวงวาดรอยโค้งรอบดาวเหนือช้า ๆ (~0.5°/วินาที ทวนเข็มแบบฟ้าเหนือจริง)
+    if (state.trailsMode && !reduceMotion) {
+      const px = W * 0.56, py = horizon * 0.3;
+      const spin = -(performance.now() - state.trailsT0) * 0.000009;
+      sctx.lineCap = "round";
+      for (const s of stars) {
+        const dx = s.x - px, dy = s.y - py;
+        const r0 = Math.hypot(dx, dy);
+        if (r0 < 6 || r0 > Math.max(W, H)) continue;
+        const th0 = Math.atan2(dy, dx);
+        sctx.globalAlpha = 0.16;
+        sctx.strokeStyle = s.color;
+        sctx.lineWidth = Math.max(0.5, s.r * 0.8);
+        sctx.beginPath();
+        sctx.arc(px, py, r0, th0, th0 + spin, true);
+        sctx.stroke();
+      }
+      sctx.globalAlpha = 1;
+    }
     const night = state.skyNight;
     for (const s of stars) {
       const a = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.001 * s.speed + s.phase))) * night;
@@ -1859,6 +2021,30 @@ function initScene() {
       sctx.fill();
     }
     sctx.globalAlpha = 1;
+    // ไฟเมืองไกลระยิบเหนือขอบฟ้า (เฉพาะฉากเมืองท่า — วาดบน canvas ดาวจึงอยู่หลังเงาตึก)
+    if (state.sceneIndex === 2) {
+      if (!cityLights.length) {
+        const n = W < 640 ? 16 : 30;
+        for (let i = 0; i < n; i++) cityLights.push({
+          x: Math.random() * W,
+          y: horizon - 2 - Math.random() * 13,
+          r: 0.7 + Math.random() * 1.1,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.5 + Math.random() * 1.4,
+          color: ["#ffd77a", "#ffab6b", "#cdd6f4", "#ffe3a1"][(Math.random() * 4) | 0],
+        });
+      }
+      for (const c of cityLights) {
+        const a = Math.max(0, Math.sin(t * 0.001 * c.speed + c.phase)) ** 2;
+        if (a < 0.05) continue;
+        sctx.globalAlpha = a * 0.55;
+        sctx.fillStyle = c.color;
+        sctx.beginPath();
+        sctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+        sctx.fill();
+      }
+      sctx.globalAlpha = 1;
+    } else if (cityLights.length) cityLights = [];
   }
 
   // ดาวทั้งฟ้าสะท้อนบนผิวน้ำ — บีบสั้น + แกว่งตามคลื่น (วาดบน canvas fx เหนือผิวน้ำ)
@@ -1986,7 +2172,11 @@ function initScene() {
     drawStarReflections(t);
     drawSparkles(t);
     for (const f of fish) {
-      f.x += f.vx * f.dir * dt;
+      f.x += (f.vx * f.dir + (f.fleeV || 0)) * dt;
+      if (f.fleeV) {                               // วิ่งหนีชั่วคราว ค่อย ๆ หายวูบ
+        f.fleeV *= Math.pow(0.97, dt);
+        if (Math.abs(f.fleeV) < 0.02) f.fleeV = 0;
+      }
       if ((f.dir > 0 && f.x > W + f.size * 2) || (f.dir < 0 && f.x < -f.size * 2)) {
         Object.assign(f, makeFish({ dir: f.dir }));
       }
@@ -2037,6 +2227,18 @@ function initScene() {
     updateMoths(dt, t);
     updateHeron();
     updateBridgeShadow(t);
+    nextSmoke -= dtMs;
+    if (nextSmoke <= 0) {
+      spawnSmokeSource();
+      nextSmoke = 9000 + Math.random() * 9000;   // กลิ่นธูปลอยเป็นพัก ๆ
+    }
+    updateSmoke(dt, t);
+    nextLooseLantern -= dtMs;
+    if (nextLooseLantern <= 0) {
+      spawnLooseLantern();
+      nextLooseLantern = 60000 + Math.random() * 60000;   // โคมหลุดสายทุก ~1-2 นาที
+    }
+    updateEscapeLanterns(dt);
     if (!document.hidden) requestAnimationFrame(frame);
   }
 
@@ -2675,6 +2877,20 @@ function init() {
   syncSky();                                    // ฟ้าตามเวลาจริงของคืน (หัวค่ำ → ดึก → ใกล้รุ่ง)
   state.timers.sky = setInterval(syncSky, 60000);
   restoreFlame();
+
+  // โหมดถ่ายภาพนาทีชั่ว (จำสถานะไว้ใน lk:trails)
+  const trailsBtn = $("#trails-toggle");
+  try { state.trailsMode = localStorage.getItem("lk:trails") === "1"; } catch { /* ไม่มีค่าเก่า */ }
+  if (state.trailsMode && trailsBtn) {
+    trailsBtn.setAttribute("aria-pressed", "true");
+    state.trailsT0 = performance.now();
+  }
+  trailsBtn?.addEventListener("click", () => {
+    state.trailsMode = !state.trailsMode;
+    state.trailsT0 = performance.now();
+    trailsBtn.setAttribute("aria-pressed", String(state.trailsMode));
+    try { localStorage.setItem("lk:trails", state.trailsMode ? "1" : "0"); } catch { /* เก็บไม่ได้ก็ข้าม */ }
+  });
   buildTypePicker();
   buildFlamePicker();
   restoreScene();
