@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Charm:wght@700&family=Mitr:wght@400;500;600&family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=5" />
-  <script type="module" src="js/app.js?v=5"></script>
+  <link rel="stylesheet" href="css/style.css?v=6" />
+  <script type="module" src="js/app.js?v=6"></script>
 </head>
 <body>
   <noscript><div class="noscript">กรุณาเปิดใช้งาน JavaScript เพื่อร่วมลอยกระทง</div></noscript>
@@ -381,6 +381,79 @@
       <circle cx="36" cy="64" r="5.5" fill="#c084fc"/><circle cx="36" cy="64" r="2" fill="#fde68a"/>
       <circle cx="84" cy="64" r="5.5" fill="#e879f9"/><circle cx="84" cy="64" r="2" fill="#fde68a"/>
       <circle cx="48" cy="68" r="4" fill="#ff8fd0"/><circle cx="72" cy="68" r="4" fill="#ffd166"/>
+    </svg>
+  </template>
+
+  <!-- ================= ขบวนเรือลำตะกั่ว ================= -->
+  <template id="tpl-boat">
+    <svg class="boat-svg" viewBox="0 0 340 150" aria-hidden="true">
+      <defs>
+        <radialGradient id="boatGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(255,196,81,.38)"/>
+          <stop offset="100%" stop-color="rgba(255,196,81,0)"/>
+        </radialGradient>
+      </defs>
+      <!-- แสงน้ำสะท้อนใต้เรือ -->
+      <ellipse cx="170" cy="128" rx="148" ry="13" fill="url(#boatGlow)"/>
+      <!-- ธงทองหัวเรือ -->
+      <line x1="16" y1="70" x2="16" y2="40" stroke="#8a5a2e" stroke-width="2"/>
+      <path d="M16 40 L44 46 L16 52 Z" fill="#ffd166"/>
+      <!-- หัว/ท้ายโค้งงอนแบบลำตะกั่ว -->
+      <path d="M14 96 Q4 82 16 68" stroke="#6b4423" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M326 96 Q336 82 324 68" stroke="#6b4423" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <!-- ตัวเรือ -->
+      <path d="M14 96 C60 116 280 116 326 96 L316 110 C270 128 70 128 24 110 Z" fill="#4a2c14"/>
+      <path d="M14 96 C60 116 280 116 326 96" stroke="#e0b352" stroke-width="2.5" fill="none"/>
+      <!-- มาลัยดอกไม้ริมเรือ -->
+      <circle cx="42" cy="105" r="3" fill="#ff8fd0"/><circle cx="66" cy="111" r="3" fill="#ffd166"/>
+      <circle cx="92" cy="115" r="3" fill="#c084fc"/><circle cx="120" cy="117.5" r="3" fill="#ff8fd0"/>
+      <circle cx="150" cy="119" r="3" fill="#ffd166"/><circle cx="180" cy="119" r="3" fill="#a5e6ff"/>
+      <circle cx="210" cy="117.5" r="3" fill="#ff8fd0"/><circle cx="238" cy="115" r="3" fill="#ffd166"/>
+      <circle cx="264" cy="111" r="3" fill="#c084fc"/><circle cx="288" cy="105" r="3" fill="#ff8fd0"/>
+      <!-- เรือนจอดกลางลำ -->
+      <line x1="126" y1="46" x2="126" y2="94" stroke="#6b4423" stroke-width="3"/>
+      <line x1="214" y1="46" x2="214" y2="94" stroke="#6b4423" stroke-width="3"/>
+      <path d="M112 46 Q170 20 228 46 Z" fill="#a83e2e" stroke="#d9a441" stroke-width="1.5"/>
+      <circle cx="170" cy="22" r="3" fill="#ffd166"/>
+      <!-- นางกวนนั่งกลางเรือ -->
+      <ellipse cx="170" cy="78" rx="10" ry="13" fill="#38246b"/>
+      <circle cx="170" cy="60" r="6" fill="#38246b"/>
+      <circle cx="174" cy="54" r="2.6" fill="#1c1238"/>
+      <path d="M160 72 Q170 82 180 72" stroke="#ffd166" stroke-width="2" fill="none"/>
+      <!-- สายโคมไฟห้อย -->
+      <path d="M112 46 Q70 62 22 76" stroke="rgba(255,233,168,.45)" stroke-width="1" fill="none"/>
+      <path d="M228 46 Q270 62 318 76" stroke="rgba(255,233,168,.45)" stroke-width="1" fill="none"/>
+      <circle class="boat-light" cx="88" cy="57" r="2.6" fill="#ffe9a8"/>
+      <circle class="boat-light" cx="58" cy="66" r="2.6" fill="#ff9ecb"/>
+      <circle class="boat-light" cx="34" cy="74" r="2.6" fill="#a5e6ff"/>
+      <circle class="boat-light" cx="252" cy="57" r="2.6" fill="#a5e6ff"/>
+      <circle class="boat-light" cx="282" cy="66" r="2.6" fill="#ff9ecb"/>
+      <circle class="boat-light" cx="306" cy="74" r="2.6" fill="#ffe9a8"/>
+      <circle class="boat-light" cx="128" cy="40" r="2.4" fill="#fff1c9"/>
+      <circle class="boat-light" cx="170" cy="30" r="2.4" fill="#ffd166"/>
+      <circle class="boat-light" cx="212" cy="40" r="2.4" fill="#fff1c9"/>
+      <!-- ลูกนางพาย 2 คนท้ายเรือ -->
+      <g transform="translate(284,90)">
+        <ellipse cx="0" cy="8" rx="6.5" ry="10" fill="#2e1f52"/>
+        <circle cx="0" cy="-6" r="4.5" fill="#2e1f52"/>
+        <circle cx="3" cy="-11" r="2.2" fill="#1c1238"/>
+      </g>
+      <g transform="translate(290,80)"><g class="boat-paddle">
+        <line x1="0" y1="0" x2="12" y2="30" stroke="#7a4a22" stroke-width="3" stroke-linecap="round"/>
+        <ellipse cx="14" cy="35" rx="4" ry="7" fill="#96703a" transform="rotate(22 14 35)"/>
+      </g></g>
+      <g transform="translate(312,92)">
+        <ellipse cx="0" cy="8" rx="6.5" ry="10" fill="#38246b"/>
+        <circle cx="0" cy="-6" r="4.5" fill="#38246b"/>
+        <circle cx="3" cy="-11" r="2.2" fill="#1c1238"/>
+      </g>
+      <g transform="translate(318,84)"><g class="boat-paddle boat-paddle-b">
+        <line x1="0" y1="0" x2="12" y2="30" stroke="#7a4a22" stroke-width="3" stroke-linecap="round"/>
+        <ellipse cx="14" cy="35" rx="4" ry="7" fill="#96703a" transform="rotate(22 14 35)"/>
+      </g></g>
+      <!-- กลีบบัวลอยแถวเรือ -->
+      <ellipse cx="58" cy="134" rx="5" ry="2" fill="rgba(255,143,208,.7)"/>
+      <ellipse cx="98" cy="138" rx="4" ry="1.8" fill="rgba(255,209,102,.6)"/>
     </svg>
   </template>
 </body>

@@ -123,6 +123,49 @@ h1, h2 {
 .pop-title { margin: 0 0 6px; font-weight: 700; font-size: .95rem; color: #f5c451; }
 .pop-body { margin: 0; font-size: .88rem; line-height: 1.55; white-space: pre-line; }
 
+/* ================= ขบวนเรือลำตะกั่ว ================= */
+.boat-parade {
+  position: absolute; z-index: 3;
+  width: clamp(180px, 32vmin, 340px);
+  pointer-events: none; will-change: transform;
+}
+.boat-bob { position: relative; animation: boatBob 3.4s ease-in-out infinite alternate; }
+@keyframes boatBob {
+  from { transform: translateY(-3px) rotate(-.35deg); }
+  to { transform: translateY(3px) rotate(.35deg); }
+}
+.boat-svg { display: block; width: 100%; height: auto; }
+.boat-svg.boat-flip { transform: scaleX(-1); }
+.boat-paddle {
+  transform-box: fill-box; transform-origin: 50% 4%;
+  animation: paddleRow 1.15s ease-in-out infinite alternate;
+}
+.boat-paddle-b { animation-delay: .58s; }
+@keyframes paddleRow {
+  from { transform: rotate(-14deg); }
+  to { transform: rotate(12deg); }
+}
+.boat-light { animation: boatLight 1.7s ease-in-out infinite alternate; }
+.boat-light:nth-of-type(2n) { animation-delay: .55s; }
+@keyframes boatLight { from { opacity: .5; } to { opacity: 1; } }
+.boat-banner {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 13px; border-radius: 12px;
+  background: rgba(11, 16, 53, .92);
+  border: 1px solid rgba(245, 196, 81, .55);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .45);
+  white-space: nowrap; pointer-events: none;
+}
+.boat-banner-name {
+  color: #f5c451; font-weight: 700; font-size: .8rem;
+  max-width: min(260px, 64vw); overflow: hidden; text-overflow: ellipsis;
+}
+.boat-banner-wish {
+  color: #efe6cf; font-size: .78rem;
+  max-width: min(260px, 64vw); overflow: hidden; text-overflow: ellipsis;
+}
+
 .temple {
   position: absolute; z-index: 2; left: 0; width: 100%;
   height: clamp(140px, 28vh, 300px);
@@ -601,6 +644,7 @@ html.show-mode .wish-ticker { bottom: calc(6px + env(safe-area-inset-bottom)); }
 @media (prefers-reduced-motion: reduce) {
   .krathong { animation: none; transform: translateX(var(--static-x, 40vw)); }
   .wave, .moon-path, .kt-bob, .kt-flame, .kt-glow, .kt-reflection, .moon, .moon-aura,
+  .boat-bob, .boat-paddle, .boat-light,
   .temple-lights circle, .btn-start, .live-dot, .flame-option[aria-checked="true"] .flame-swatch { animation: none !important; }
   .release-ripple { display: none; }
   .wish-tick { display: none; }

@@ -96,6 +96,8 @@ const state = {
   sendingHeart: false,
   moodWinner: null,          // หมวดที่ชนะของวันนี้ (จันทร์สะท้อนใจเมือง)
   moodAnnounced: false,      // ข้ามประกาศครั้งแรกตอนโหลดหน้า
+  boatActive: false,         // ขบวนเรือลำตะกั่วกำลังวิ่งอยู่ (กันเรือซ้อน)
+  lastBoatAt: 0,             // เวลาที่ปล่อยเรือล่าสุด (cooldown)
   flameColor: "gold",        // สีแสงเทียนของกระทงใหม่ (จำไว้ใน lk:flame)
   sceneIndex: 0,             // ธีมฉากปัจจุบัน (จำไว้ใน lk:scene)
   unsub: {},
@@ -128,6 +130,7 @@ function cacheEls() {
     heartRow: $("#heart-row"), btnHeart: $("#btn-heart"),
     heartEmoji: $("#heart-emoji"), heartLabel: $("#heart-label"), heartTotal: $("#heart-total"),
     moon: $("#moon"), moonPopover: $("#moon-popover"), moonPopBody: $("#moon-pop-body"),
+    scene: $("#scene"),
   });
 }
 
@@ -489,6 +492,7 @@ async function handleSubmit(e) {
     sound.splash();
     sound.chime();
     showerFx?.(6, true);          // ดาวตกสีทองฉลองกระทงของเรา
+    sendBoat(created);            // ขบวนลำตะกั่วถือป้ายคำอธิษฐานของเราออกเดิน (cooldown ใน sendBoat)
     requestAnimationFrame(() => spawnReleaseRipple(ref.id));
 
     try { localStorage.setItem("lk:ownerName", v.ownerName); } catch { /* เก็บแค่ชื่อที่ใช้ล่าสุด */ }
@@ -641,6 +645,7 @@ function announceNew(k) {
   sound.plink();                                  // เสียงน้ำเบา ๆ ให้รู้ว่ามีกระทงใหม่
   showerFx?.(3, false);                           // ดาวตกชุดเล็กต้อนรับ
   lanternFx?.(2, (k.positionX / 100) * window.innerWidth);   // โคมลอยฟ้าเป็นชุดต้อนรับจากขอบฟ้า
+  sendBoat(k);                                    // ขบวนลำตะกั่วถือป้ายคำอธิษฐานนี้ผ่านแม่น้ำ (cooldown ใน sendBoat)
   tickerSay(`${k.ownerName} ขอให้ ${wishShort(k.wishMessage)}`);   // โชว์บนแถบวิ่งเมื่อเปิดจอโชว์
 }
 
@@ -889,6 +894,82 @@ function toggleMoonPopover() {
   pop.classList.add("show");
   clearTimeout(state.timers.moonPop);
   state.timers.moonPop = setTimeout(() => pop.classList.remove("show"), 6500);
+}
+
+/* =====================================================================
+ *  ขบวนเรือลำตะกั่ว — เรือประดับไฟพายผ่านแม่น้ำ ถือป้ายคำอธิษฐานล่าสุด
+ * ===================================================================== */
+function latestKrathong() {
+  let best = null, bestTs = -Infinity;
+  for (const k of state.data.values()) {
+    const ts = k?.createdAt?.toMillis ? k.createdAt.toMillis() : 0;
+    if (ts > bestTs) { bestTs = ts; best = k; }
+  }
+  return best;
+}
+
+/** ปล่อยเรือลำตะกั่วผ่านแม่น้ำ 1 ลำ (คืน true ถ้าออกเดินทางจริง) */
+function sendBoat(k = null) {
+  if (state.boatActive) return false;
+  if (Date.now() - state.lastBoatAt < 60_000) return false;   // กันเรือรุมเกินไป
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
+  const tpl = document.getElementById("tpl-boat");
+  if (!tpl) return false;
+  state.boatActive = true;
+  state.lastBoatAt = Date.now();
+  clearTimeout(state.timers.boat);       // มีเรือออกแล้ว → ยกเลิกนัดเดิม กันสายขบวนซ้อน
+  k = k || latestKrathong();
+
+  const boat = div("boat-parade");
+  const bob = div("boat-bob");
+  const svg = tpl.content.firstElementChild.cloneNode(true);
+  const banner = div("boat-banner");
+  const nameEl = div("boat-banner-name");
+  const wishEl = div("boat-banner-wish");
+  if (k) {
+    nameEl.textContent = `🛶 ความปรารถนาจาก ${k.ownerName}`;
+    wishEl.textContent = `ขอให้ ${wishShort(k.wishMessage)}`;
+  } else {
+    nameEl.textContent = "🛶 ขบวนเรือลำตะกั่ว";
+    wishEl.textContent = "รอคำอธิษฐานใบแรกของคืนนี้";
+  }
+  banner.append(nameEl, wishEl);
+  bob.append(svg, banner);
+  boat.append(bob);
+  boat.style.top = `${(60 + Math.random() * 10).toFixed(1)}%`;
+  els.scene.append(boat);
+
+  const w = boat.offsetWidth;
+  const ltr = Math.random() < 0.5;
+  const pad = w + 60;
+  const fromX = ltr ? -pad : window.innerWidth + pad;
+  const toX = ltr ? window.innerWidth + pad : -pad;
+  if (!ltr) svg.classList.add("boat-flip");      // หัวเรือต้องชี้ทางเดิน
+  boat.style.transform = `translateX(${Math.round(fromX)}px)`;
+  void boat.offsetWidth;                          // บังคับ layout ก่อนสั่งเลื่อน
+  const dur = Math.round(34000 + Math.random() * 12000);
+  boat.style.transition = `transform ${dur}ms linear`;
+  sound.chong();                                  // ฉ่อง! ขบวนออกจากฝั่ง
+  requestAnimationFrame(() => {
+    boat.style.transform = `translateX(${Math.round(toX)}px)`;
+  });
+  setTimeout(() => {
+    boat.remove();
+    state.boatActive = false;
+    scheduleBoat();                               // นัดขบวนรอบถัดไป
+  }, dur + 900);
+  return true;
+}
+
+/** กำหนดเวลาเรือลำถัดไป (first = ครั้งแรกหลังเปิดหน้า ให้เร็วหน่อย) */
+function scheduleBoat(first = false) {
+  clearTimeout(state.timers.boat);
+  const delay = first
+    ? 26000 + Math.random() * 24000               // ~26-50 วิ
+    : 75000 + Math.random() * 55000;              // ~75-130 วิ
+  state.timers.boat = setTimeout(() => {
+    if (!sendBoat()) scheduleBoat();              // เด้งกลับ (เช่น reduced-motion) → นัดใหม่
+  }, delay);
 }
 
 /* =====================================================================
@@ -1510,6 +1591,25 @@ const sound = (() => {
       const f = 620 + Math.random() * 160;
       tone(f, c.currentTime, 0.10, 0.38, f * 1.5, 0.12);
     },
+    // เสียงฉ่อง — เสียงฉาบทองต้อนรับขบวนเรือลำตะกั่ว
+    chong() {
+      const c = ac(); if (!c) return;
+      const t = c.currentTime + 0.02;
+      tone(523, t, 0.20, 1.7);
+      tone(786, t, 0.11, 1.3);
+      tone(1247, t, 0.07, 0.85);
+      tone(2093, t, 0.045, 0.45);
+      const src = c.createBufferSource();
+      src.buffer = noiseBuffer(c, 0.22);
+      const hp = c.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 3600;
+      const g = c.createGain();
+      env(g, t, 0.09, 0.16);
+      src.connect(hp).connect(g).connect(master);
+      src.start(t);
+      src.stop(t + 0.22);
+    },
   };
 })();
 
@@ -1960,6 +2060,7 @@ function isConfigured(c) {
 function init() {
   cacheEls();
   initScene();
+  scheduleBoat(true);   // นัดขบวนเรือลำตะกั่วลำแรก (~26-50 วิ หลังเปิดหน้า)
   restoreFlame();
   buildTypePicker();
   buildFlamePicker();
