@@ -183,6 +183,42 @@ h1, h2 {
   to { transform: scaleY(-1) skewX(1.4deg); }
 }
 
+/* ================= เงาคนยืนดูกระทงริมฝั่ง (ตามจำนวนออนไลน์) ================= */
+.bank-crowd {
+  position: absolute; z-index: 2; left: 0; width: 100%;
+  bottom: calc(100% - var(--horizon)); height: 0; pointer-events: none;
+}
+.bank-person {
+  position: absolute; bottom: 0;
+  width: calc(13px * var(--h, 1)); height: calc(32px * var(--h, 1));
+  transform-origin: 50% 100%; opacity: 0; transition: opacity .9s;
+  animation: bankSway 5.5s ease-in-out var(--sway, 0s) infinite alternate;
+}
+.bank-person::before {
+  content: ''; position: absolute; left: 50%; top: 0;
+  width: 46%; aspect-ratio: 1; transform: translateX(-50%);
+  border-radius: 50%; background: #0a0620;
+}
+.bank-person::after {
+  content: ''; position: absolute; left: 6%; top: 32%;
+  width: 88%; height: 68%;
+  border-radius: 42% 42% 14% 14%; background: #0a0620;
+}
+@keyframes bankSway {
+  from { transform: rotate(-1.3deg); }
+  to { transform: rotate(1.3deg); }
+}
+
+/* ================= ลมจากนิ้วโยกกระทงและเปลวเทียน ================= */
+.krathong.kt-gust .kt-bob { animation: gustRock .7s ease-in-out 2; }
+@keyframes gustRock {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: translateY(-2px) rotate(calc(var(--gust-dir, 1) * 7deg)); }
+  70% { transform: translateY(2px) rotate(calc(var(--gust-dir, 1) * -4deg)); }
+}
+.krathong.kt-gust .kt-flame { animation: flicker .06s ease-in-out infinite alternate; }
+.krathong.kt-gust .kt-glow { filter: brightness(1.35) saturate(1.2); }
+
 .temple {
   position: absolute; z-index: 2; left: 0; width: 100%;
   height: clamp(140px, 28vh, 300px);
@@ -661,7 +697,7 @@ html.show-mode .wish-ticker { bottom: calc(6px + env(safe-area-inset-bottom)); }
 @media (prefers-reduced-motion: reduce) {
   .krathong { animation: none; transform: translateX(var(--static-x, 40vw)); }
   .wave, .moon-path, .kt-bob, .kt-flame, .kt-glow, .kt-reflection, .moon, .moon-aura,
-  .boat-bob, .boat-paddle, .boat-light, .river-reflect,
+  .boat-bob, .boat-paddle, .boat-light, .river-reflect, .bank-person,
   .temple-lights circle, .btn-start, .live-dot, .flame-option[aria-checked="true"] .flame-swatch { animation: none !important; }
   .release-ripple { display: none; }
   .wish-tick { display: none; }
