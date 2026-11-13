@@ -134,7 +134,8 @@ const state = {
   sceneIndex: 0,             // ธีมฉากปัจจุบัน (จำไว้ใน lk:scene)
   skyNight: 1,               // ความมืดของคืน 0-1 (ฟ้าเปลี่ยนสีตามเวลาจริง — ใกล้รุ่งดาวจาง)
   trailsMode: false,         // โหมดถ่ายภาพนาทีชั่ว — ดาววาดรอยโค้งรอบดาวเหนือ
-  trailsT0: 0,               // เวลาเริ่มรอยโค้ง (performance.now())
+  trailsT0: 0,               // เวลาเริ่มรอยโค้ง (นาฬิกาฉาก sceneClock)
+  timelapse: false,          // ไทม์แลปส์ — เร่งเวลาทั้งฉาก (จำไว้ใน lk:timelapse)
   unsub: {},
   timers: {},
   retry: {},
@@ -637,6 +638,7 @@ function addKrathong(k, animateIn) {
   }
   state.rendered.set(k.id, el);
   els.layer.append(el);
+  queueAnimSync();                              // ไทม์แลปส์เปิดอยู่ → กระทงใหม่ได้ความเร็วตามโหมด
   if (k.id === state.pendingHighlightId) highlightKrathong(k.id);
 }
 
@@ -1007,6 +1009,7 @@ function sendBoat(k = null) {
   boat.append(bob);
   boat.style.top = `${(60 + Math.random() * 10).toFixed(1)}%`;
   els.scene.append(boat);
+  queueAnimSync();                                // ไทม์แลปส์เปิดอยู่ → เรือใหม่ได้ความเร็วตามโหมด
 
   const w = boat.offsetWidth;
   const ltr = Math.random() < 0.5;
@@ -1191,6 +1194,37 @@ let showerFx = null;            // ฟังก์ชันปล่อยดา
 let lanternFx = null;           // ฟังก์ชันปล่อยโคมลอยฟ้าเป็นชุด
 let heartFx = null;             // ฟังก์ชันปล่อยหัวใจลอย (กำลังใจ)
 let turtleFx = null;            // ฟังก์ชันปล่อยเต่ามารับขนมปัง (เฉพาะกระทงขนมปัง)
+let sceneClock = () => performance.now();   // นาฬิกาฉาก (initScene แทนที่ให้จริง — ไทม์แลปส์เดินเร็วกว่านาฬิกาจริง)
+
+/* ---------------- ไทม์แลปส์เร่งเวลาทั้งฉาก ----------------
+ * ฝั่ง CSS: เร่งทุก animation ด้วย playbackRate ตามความยาวรอบ
+ *   (เคลื่อนที่ช้า เช่น กระทงลอย/คลื่น = เร็ว 8 เท่า, ไหวปานกลาง = 3 เท่า, ไฟวิบวับอยู่แล้ว = ปล่อยเดิม)
+ * ฝั่ง canvas: frame loop คูณ dt ด้วยความเร็วเดียวกัน — ปิดโหมดแล้วกระทงกลับเข้าเฟสเดิมตามเวลาเซิร์ฟเวอร์ */
+const TL_SPEED = 8;
+function syncAnimRates() {
+  const tl = state.timelapse;
+  try {
+    for (const a of document.getAnimations()) {
+      let dur = 0;
+      try { dur = Number(a.effect?.getTiming?.().duration) || 0; } catch { /* บาง animation อ่านไม่ได้ */ }
+      const rate = tl ? (dur >= 8000 ? TL_SPEED : dur >= 1000 ? 3 : 1) : 1;
+      try { a.playbackRate = rate; } catch { /* บางประเภทห้ามแก้ */ }
+    }
+  } catch { /* เบราว์เซอร์เก่าไม่รองรับ getAnimations */ }
+}
+let animSyncQueued = false;
+function queueAnimSync() {                 // element ใหม่เกิดบ่อย → รวบสั่งทีละเฟรม
+  if (animSyncQueued || !state.timelapse) return;
+  animSyncQueued = true;
+  requestAnimationFrame(() => { animSyncQueued = false; syncAnimRates(); });
+}
+function resyncKrathongDrift() {           // ปิดไทม์แลปส์ → กระทงกลับเฟสเดิมตามเวลาเซิร์ฟเวอร์
+  for (const [id, el] of state.rendered) {
+    const k = state.data.get(id);
+    if (!k) continue;
+    el.style.setProperty("--delay", `${computeMotion(k).delay.toFixed(2)}s`);
+  }
+}
 
 function initScene() {
   const starsCanvas = $("#stars-canvas");
@@ -1212,6 +1246,8 @@ function initScene() {
   let nextSmoke = 8000 + Math.random() * 8000;     // ควันธูปก้อนแรก
   let nextLooseLantern = 50000 + Math.random() * 50000;   // โคมหลุดสายลูกแรก ~50-100 วิ
   let moon = { x: 0, y: 0, r: 40 };
+  let leaves = [];               // ใบบัวริมฝั่ง + น้ำค้างวิบวับ
+  let vt = performance.now();    // นาฬิกาฉาก (canvas) — ไทม์แลปส์ทำให้เดินเร็วกว่านาฬิกาจริง
   let last = performance.now();
 
   function makeLantern(initial) {
@@ -1950,6 +1986,108 @@ function initScene() {
     }
   }
 
+  /* ---------------- ใบบัวริมฝั่ง + น้ำค้างวิบวับ ----------------
+   * ใบบัวจอดเรียงริมฝั่งซ้าย-ขวา โยกตามคลื่นเบา ๆ บนใบมีหยดน้ำค้างวาบประกายเป็นพัก ๆ
+   * (วาดบน canvas fx เหนือผิวน้ำ ใต้กระทง — ใบไกลเล็กกว่าตามมุมมองลึกของแม่น้ำ) */
+  function initLeaves() {
+    leaves = [];
+    const n = W < 640 ? 6 : 10;
+    for (let i = 0; i < n; i++) {
+      const leftSide = i % 2 === 0;
+      const relBand = 0.08 + Math.random() * 0.62;              // แนวลึกในแม่น้ำ (0 = ริมฝั่งไกล)
+      const dew = [];
+      const dewCount = 1 + ((Math.random() * 2) | 0);           // 1-2 หยดน้ำค้างต่อใบ
+      for (let d = 0; d < dewCount; d++) {
+        dew.push({
+          ang: Math.random() * Math.PI * 2,
+          dist: 0.2 + Math.random() * 0.5,                      // ระยะจากก้าน (สัดส่วนรัศมี)
+          size: 1.1 + Math.random() * 1.8,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.5 + Math.random() * 0.9,
+        });
+      }
+      leaves.push({
+        relX: leftSide ? 0.03 + Math.random() * 0.12 : 0.85 + Math.random() * 0.12,
+        relBand,
+        r: (11 + Math.random() * 15) * (0.6 + relBand * 0.55),  // ใบไกลเล็กกว่า
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() * 2 - 1) * 0.00035,
+        bobPhase: Math.random() * Math.PI * 2,
+        bobSpeed: 0.0011 + Math.random() * 0.0009,
+        swayPhase: Math.random() * Math.PI * 2,
+        notch: 0.4 + Math.random() * 0.45,                      // ช่องเว้าของใบบัว
+        hue: 95 + Math.random() * 40,
+        dew,
+      });
+    }
+  }
+
+  function drawLeaf(lf, t) {
+    const x = lf.relX * W + Math.sin(t * 0.0007 + lf.swayPhase) * 3;
+    const y = horizon + (H - horizon) * lf.relBand + Math.sin(t * lf.bobSpeed + lf.bobPhase) * 2.2;
+    const night = 1 - state.skyNight * 0.55;                    // กลางคืนใบมืดลงตามฟ้า
+    const shine = 0.35 + night * 0.65;
+    fctx.save();
+    fctx.translate(x, y);
+    fctx.globalAlpha = 0.2 * (0.4 + night * 0.6);               // เงาน้ำใต้ใบ
+    fctx.fillStyle = "#02040f";
+    fctx.beginPath();
+    fctx.ellipse(3, lf.r * 0.34, lf.r * 1.02, lf.r * 0.5, 0, 0, Math.PI * 2);
+    fctx.fill();
+    fctx.rotate(lf.rot);
+    fctx.globalAlpha = 1;
+    const g = fctx.createRadialGradient(0, 0, lf.r * 0.1, 0, 0, lf.r);
+    g.addColorStop(0, `hsl(${lf.hue}, 42%, ${(34 * night + 6).toFixed(1)}%)`);
+    g.addColorStop(0.75, `hsl(${lf.hue}, 45%, ${(26 * night + 5).toFixed(1)}%)`);
+    g.addColorStop(1, `hsl(${lf.hue}, 48%, ${(19 * night + 4).toFixed(1)}%)`);
+    fctx.fillStyle = g;
+    fctx.beginPath();                                           // ใบบัว: วงกลมเว้าหนึ่งช่อง
+    fctx.arc(0, 0, lf.r, lf.notch / 2, Math.PI * 2 - lf.notch / 2);
+    fctx.lineTo(0, 0);
+    fctx.closePath();
+    fctx.fill();
+    fctx.strokeStyle = `hsla(${lf.hue}, 50%, ${(45 * night + 10).toFixed(1)}%, .5)`;   // ขอบใบ
+    fctx.lineWidth = 1;
+    fctx.stroke();
+    fctx.globalAlpha = 0.13;                                    // เส้นก้านใบอ่อน ๆ
+    fctx.strokeStyle = `hsl(${lf.hue}, 40%, ${(55 * night + 12).toFixed(1)}%)`;
+    for (let v = 0; v < 3; v++) {
+      const va = lf.notch / 2 + (Math.PI * 2 - lf.notch) * (0.25 + v * 0.25);
+      fctx.beginPath();
+      fctx.moveTo(0, 0);
+      fctx.lineTo(Math.cos(va) * lf.r * 0.85, Math.sin(va) * lf.r * 0.85);
+      fctx.stroke();
+    }
+    fctx.globalAlpha = 1;
+    for (const d of lf.dew) {                                   // น้ำค้างบนใบ
+      const dx = Math.cos(d.ang) * lf.r * d.dist;
+      const dy = Math.sin(d.ang) * lf.r * d.dist;
+      const tw = 0.5 + 0.5 * Math.sin(t * 0.003 * d.speed + d.phase);
+      fctx.globalAlpha = (0.25 + tw * tw * 0.6) * shine;
+      fctx.fillStyle = "#eaf6ff";
+      fctx.beginPath();
+      fctx.arc(dx, dy, d.size, 0, Math.PI * 2);
+      fctx.fill();
+      if (tw > 0.86) {                                          // วาบประกายเมื่อสว่างสุด
+        const gl = (tw - 0.86) / 0.14;
+        fctx.globalAlpha = gl * 0.85 * shine;
+        fctx.strokeStyle = "#ffffff";
+        fctx.lineWidth = 1;
+        const gr = d.size * (2 + gl * 3);
+        fctx.beginPath();
+        fctx.moveTo(dx - gr, dy); fctx.lineTo(dx + gr, dy);
+        fctx.moveTo(dx, dy - gr); fctx.lineTo(dx, dy + gr);
+        fctx.stroke();
+      }
+    }
+    fctx.globalAlpha = 1;
+    fctx.restore();
+  }
+
+  function drawLeaves(t) {
+    for (const lf of leaves) drawLeaf(lf, t);
+  }
+
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
@@ -1985,6 +2123,7 @@ function initScene() {
     sparkles = Array.from({ length: Math.round(W / 7) }, makeSparkle);
     fish = Array.from({ length: W < 640 ? 3 : 6 }, () => makeFish({ initial: true }));
     fireflies = Array.from({ length: W < 640 ? 10 : 18 }, makeFirefly);
+    initLeaves();                                                // ใบบัววางใหม่ตามขนาดจอ
     turtles = []; bubbleFx = []; comets = [];   // วัตถุชั่วคราวรีเซ็ตตามขนาดจอ
     leapers = []; splashFx = []; dropFx = []; moths = [];
     smokeFx = []; smokeSrc = []; escapes = []; cityLights = [];
@@ -1995,7 +2134,7 @@ function initScene() {
     // โหมดถ่ายภาพนาทีชั่ว — ดาวทุกดวงวาดรอยโค้งรอบดาวเหนือช้า ๆ (~0.5°/วินาที ทวนเข็มแบบฟ้าเหนือจริง)
     if (state.trailsMode && !reduceMotion) {
       const px = W * 0.56, py = horizon * 0.3;
-      const spin = -(performance.now() - state.trailsT0) * 0.000009;
+      const spin = -(t - state.trailsT0) * 0.000009;   // t = นาฬิกาฉาก (ไทม์แลปส์เร่งรอยด้วย)
       sctx.lineCap = "round";
       for (const s of stars) {
         const dx = s.x - px, dy = s.y - py;
@@ -2164,13 +2303,15 @@ function initScene() {
   }
 
   function frame(t) {
-    const dtMs = Math.min(50, t - last);
+    const speed = state.timelapse ? TL_SPEED : 1;    // ไทม์แลปส์ — เร่งเวลาทั้งฉาก
+    const dtMs = Math.min(50, t - last) * speed;
     const dt = dtMs / 16.67;
     last = t;
-    drawStars(t);
+    vt += dtMs;                                      // นาฬิกาฉากเดินตามโหมด (ปกติ = เท่าจริง)
+    drawStars(vt);
     fctx.clearRect(0, 0, W, H);
-    drawStarReflections(t);
-    drawSparkles(t);
+    drawStarReflections(vt);
+    drawSparkles(vt);
     for (const f of fish) {
       f.x += (f.vx * f.dir + (f.fleeV || 0)) * dt;
       if (f.fleeV) {                               // วิ่งหนีชั่วคราว ค่อย ๆ หายวูบ
@@ -2180,15 +2321,17 @@ function initScene() {
       if ((f.dir > 0 && f.x > W + f.size * 2) || (f.dir < 0 && f.x < -f.size * 2)) {
         Object.assign(f, makeFish({ dir: f.dir }));
       }
-      drawFish(f, t);
+      drawFish(f, vt);
     }
+    for (const lf of leaves) lf.rot += lf.rotSpeed * dt;   // ใบบัวหมุนเอียงช้า ๆ
+    drawLeaves(vt);                                        // ใบบัวริมฝั่ง + น้ำค้างวิบวับ
     for (let i = 0; i < lanterns.length; i++) {
       const l = lanterns[i];
       l.y -= l.vy * dt;
       l.sway += l.swaySpeed * dt;
       l.x += Math.sin(l.sway) * l.swayAmp * dt;
       if (l.y < -40) lanterns[i] = makeLantern(false);
-      drawLantern(l, t);
+      drawLantern(l, vt);
     }
     nextMeteor -= dtMs;
     if (nextMeteor <= 0) {
@@ -2203,8 +2346,8 @@ function initScene() {
       nextLanternBurst = 20000 + Math.random() * 18000;
     }
     updateHeartFx(dt);
-    updateTurtles(dt, t);
-    drawFireflies(t);
+    updateTurtles(dt, vt);
+    drawFireflies(vt);
     nextComet -= dtMs;
     if (nextComet <= 0) {
       spawnComet();
@@ -2224,15 +2367,15 @@ function initScene() {
       if (moths.length < 3 && Math.random() < 0.4) spawnMoth();
       nextMoth = 12000 + Math.random() * 12000;
     }
-    updateMoths(dt, t);
+    updateMoths(dt, vt);
     updateHeron();
-    updateBridgeShadow(t);
+    updateBridgeShadow(vt);
     nextSmoke -= dtMs;
     if (nextSmoke <= 0) {
       spawnSmokeSource();
       nextSmoke = 9000 + Math.random() * 9000;   // กลิ่นธูปลอยเป็นพัก ๆ
     }
-    updateSmoke(dt, t);
+    updateSmoke(dt, vt);
     nextLooseLantern -= dtMs;
     if (nextLooseLantern <= 0) {
       spawnLooseLantern();
@@ -2255,6 +2398,7 @@ function initScene() {
   lanternFx = lanternBurst;
   heartFx = heartBurst;
   turtleFx = spawnTurtleFor;        // เต่ามารับขนมปัง (เชื่อมจาก initScene)
+  sceneClock = () => vt;            // ฟีเจอร์อื่นใช้นาฬิกาฉากเดียวกัน (เช่น trailsT0)
   resize();
   if (reduceMotion) {
     drawStars(0);
@@ -2262,6 +2406,7 @@ function initScene() {
     drawSparkles(1000);
     lanterns.forEach((l) => drawLantern(l, 0));
     fish.forEach((f) => drawFish(f, 0));
+    leaves.forEach((lf) => drawLeaf(lf, 900));    // ใบบัวนิ่ง ๆ (reduced-motion)
     drawFireflies(1200);            // หิ่งห้อยจุดเรืองแบบนิ่ง (reduced-motion)
   } else {
     requestAnimationFrame(frame);
@@ -2883,14 +3028,33 @@ function init() {
   try { state.trailsMode = localStorage.getItem("lk:trails") === "1"; } catch { /* ไม่มีค่าเก่า */ }
   if (state.trailsMode && trailsBtn) {
     trailsBtn.setAttribute("aria-pressed", "true");
-    state.trailsT0 = performance.now();
+    state.trailsT0 = sceneClock();
   }
   trailsBtn?.addEventListener("click", () => {
     state.trailsMode = !state.trailsMode;
-    state.trailsT0 = performance.now();
+    state.trailsT0 = sceneClock();
     trailsBtn.setAttribute("aria-pressed", String(state.trailsMode));
     try { localStorage.setItem("lk:trails", state.trailsMode ? "1" : "0"); } catch { /* เก็บไม่ได้ก็ข้าม */ }
   });
+
+  // ไทม์แลปส์เร่งเวลาทั้งฉาก (จำสถานะไว้ใน lk:timelapse)
+  const tlBtn = $("#timelapse-toggle");
+  try { state.timelapse = localStorage.getItem("lk:timelapse") === "1"; } catch { /* ไม่มีค่าเก่า */ }
+  if (state.timelapse && tlBtn) {
+    tlBtn.setAttribute("aria-pressed", "true");
+    syncAnimRates();
+  }
+  tlBtn?.addEventListener("click", () => {
+    state.timelapse = !state.timelapse;
+    tlBtn.setAttribute("aria-pressed", String(state.timelapse));
+    try { localStorage.setItem("lk:timelapse", state.timelapse ? "1" : "0"); } catch { /* เก็บไม่ได้ก็ข้าม */ }
+    syncAnimRates();
+    if (!state.timelapse) resyncKrathongDrift();   // ปิดโหมด → กระทงกลับเฟสเดิมตามเวลาเซิร์ฟเวอร์
+  });
+  try {   // องค์ประกอบที่เกิดทีหลัง (กระทง/เรือ/แถวคน) ได้ความเร็วตามโหมดเสมอ
+    new MutationObserver(queueAnimSync).observe(document.body, { childList: true, subtree: true });
+  } catch { /* เบราว์เซอร์เก่าข้ามได้ */ }
+  state.timers.tlSync = setInterval(() => { if (state.timelapse) syncAnimRates(); }, 4000);
   buildTypePicker();
   buildFlamePicker();
   restoreScene();

@@ -458,8 +458,8 @@ h1, h2 {
 .sound-toggle:focus-visible { outline: 2px solid var(--pink); outline-offset: 3px; }
 .sound-toggle[aria-pressed="false"] { opacity: .6; }
 
-/* ปุ่มโหมดจอโชว์ + สลับฉาก (ซ้อนกันเหนือปุ่มเสียง) */
-.show-toggle, .scene-toggle {
+/* ปุ่มโหมดจอโชว์ + สลับฉาก + นาทีชั่ว + ไทม์แลปส์ (ซ้อนกันเหนือปุ่มเสียง) */
+.show-toggle, .scene-toggle, .trails-toggle, .timelapse-toggle {
   position: fixed; z-index: 12;
   right: max(14px, env(safe-area-inset-right));
   height: 46px; border-radius: 999px; cursor: pointer;
@@ -471,12 +471,17 @@ h1, h2 {
 }
 .show-toggle { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 158px); }
 .scene-toggle { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 212px); }
-.show-toggle:hover, .scene-toggle:hover, .trails-toggle:hover { transform: translateY(-2px); border-color: var(--gold); }
-.show-toggle:active, .scene-toggle:active, .trails-toggle:active { transform: scale(.94); }
-.show-toggle:focus-visible, .scene-toggle:focus-visible, .trails-toggle:focus-visible { outline: 2px solid var(--pink); outline-offset: 3px; }
+.show-toggle:hover, .scene-toggle:hover, .trails-toggle:hover, .timelapse-toggle:hover { transform: translateY(-2px); border-color: var(--gold); }
+.show-toggle:active, .scene-toggle:active, .trails-toggle:active, .timelapse-toggle:active { transform: scale(.94); }
+.show-toggle:focus-visible, .scene-toggle:focus-visible, .trails-toggle:focus-visible, .timelapse-toggle:focus-visible { outline: 2px solid var(--pink); outline-offset: 3px; }
 .trails-toggle { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 266px); }
 .trails-toggle[aria-pressed="true"] {
   background: linear-gradient(135deg, rgba(124, 77, 204, .9), rgba(34, 19, 90, .92));
+  color: #fff; border-color: var(--gold);
+}
+.timelapse-toggle { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 320px); }
+.timelapse-toggle[aria-pressed="true"] {
+  background: linear-gradient(135deg, rgba(245, 158, 11, .9), rgba(124, 45, 18, .92));
   color: #fff; border-color: var(--gold);
 }
 .show-toggle[aria-pressed="true"] {
@@ -674,9 +679,9 @@ html:not(.show-mode) .wish-ticker { display: none; }
   .btn-start { font-size: 1.05rem; padding: 13px 28px; }
   .toast-container { bottom: 120px; }
   /* ปุ่มลอยฝั่งขวา 4 ปุ่ม: ย่อให้เข้ากับจอเล็ก */
-  .sound-toggle, .show-toggle, .scene-toggle, .trails-toggle { height: 40px; font-size: .72rem; }
+  .sound-toggle, .show-toggle, .scene-toggle, .trails-toggle, .timelapse-toggle { height: 40px; font-size: .72rem; }
   .sound-toggle { width: 40px; font-size: 1rem; }
-  .show-toggle, .scene-toggle, .trails-toggle { padding: 0 10px; }
+  .show-toggle, .scene-toggle, .trails-toggle, .timelapse-toggle { padding: 0 10px; }
   /* iOS ขยายหน้าจอเองเมื่อแตะช่องกรอกที่ตัวอักษร < 16px — ล็อกไว้ */
   .field input, .field textarea { font-size: 16px; }
 }
