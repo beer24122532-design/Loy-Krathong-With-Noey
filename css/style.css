@@ -209,16 +209,6 @@ h1, h2 {
   to { transform: rotate(1.3deg); }
 }
 
-/* ================= ลมจากนิ้วโยกกระทงและเปลวเทียน ================= */
-.krathong.kt-gust .kt-bob { animation: gustRock .7s ease-in-out 2; }
-@keyframes gustRock {
-  0%, 100% { transform: rotate(0deg); }
-  30% { transform: translateY(-2px) rotate(calc(var(--gust-dir, 1) * 7deg)); }
-  70% { transform: translateY(2px) rotate(calc(var(--gust-dir, 1) * -4deg)); }
-}
-.krathong.kt-gust .kt-flame { animation: flicker .06s ease-in-out infinite alternate; }
-.krathong.kt-gust .kt-glow { filter: brightness(1.35) saturate(1.2); }
-
 .temple {
   position: absolute; z-index: 2; left: 0; width: 100%;
   height: clamp(140px, 28vh, 300px);

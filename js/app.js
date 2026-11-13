@@ -1733,54 +1733,6 @@ function initScene() {
     }
   }
 
-  /* ---------------- ลมจากนิ้ว — ลากผิวน้ำแล้วกระทงโยกตาม ---------------- */
-  let lastPtr = null, lastGustScan = 0, lastFingerRipple = 0;
-  const gustLock = new Map();                    // id -> เวลาที่โดนลมล่าสุด
-  window.addEventListener("pointermove", (e) => {
-    if (reduceMotion) return;
-    const now = performance.now();
-    const p = { x: e.clientX, y: e.clientY, t: now };
-    if (lastPtr) {
-      const ms = Math.max(1, p.t - lastPtr.t);
-      const vx = (p.x - lastPtr.x) / ms;
-      const vy = (p.y - lastPtr.y) / ms;
-      const speed = Math.hypot(vx, vy);
-      if (speed > 0.25 && p.y > horizon) gustAt(p.x, p.y, vx >= 0 ? 1 : -1, speed);
-    }
-    lastPtr = p;
-  }, { passive: true });
-
-  function fingerRipple(px, py) {
-    if (!els.layer) return;
-    const lr = els.layer.getBoundingClientRect();
-    const ring = div("release-ripple");
-    ring.style.setProperty("--x", `${Math.round(px - lr.left)}px`);
-    ring.style.setProperty("--y", `${Math.round(py - lr.top)}px`);
-    els.layer.append(ring);
-    setTimeout(() => ring.remove(), 2800);
-  }
-
-  function gustAt(px, py, dir, speed) {
-    const now = performance.now();
-    if (now - lastFingerRipple > 200) {          // วงน้ำที่ปลายนิ้ว
-      lastFingerRipple = now;
-      fingerRipple(px, py);
-    }
-    if (now - lastGustScan < 90) return;         // สแกนกระทงไม่ถี่เกิน
-    lastGustScan = now;
-    for (const [id, el] of state.rendered) {
-      const r = el.getBoundingClientRect();
-      if (Math.abs((r.left + r.right) / 2 - px) > 170) continue;
-      if (Math.abs((r.top + r.bottom) / 2 - py) > 150) continue;
-      const last = gustLock.get(id) || 0;
-      if (now - last < 2200) continue;           // กระทงเดิมไม่โดนซ้ำถี่เกิน
-      gustLock.set(id, now);
-      el.style.setProperty("--gust-dir", String(dir));
-      el.classList.add("kt-gust");
-      setTimeout(() => el.classList.remove("kt-gust"), 1500);
-    }
-  }
-
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
