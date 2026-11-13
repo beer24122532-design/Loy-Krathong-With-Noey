@@ -51,6 +51,38 @@ const SCENES = Object.freeze([
   { id: "scene-port",   label: "เมืองท่า" },
 ]);
 
+/* ---------------- ฟ้าเปลี่ยนสีตามเวลาจริงของคืน (หัวค่ำ → ดึก → ใกล้รุ่ง) ----------------
+ * t = นาฬิกาของคืน: 18:00 = 0, เที่ยงคืน = 6, 06:00 = 12 (ช่วงกลางวันคงค้ามืดสนิทของเทศกาล)
+ * อิงเวลาเครื่องผู้ใช้ — ทุกเครื่องที่เข้าพร้อมกันเห็นโทนฟ้าเดียวกัน */
+const SKY_STAGES = [
+  { t: 0,   c: ["#03051a", "#0b1035", "#22135a", "#4a2275"], n: 1 },    // 18:00 หัวค่ำ
+  { t: 3,   c: ["#020414", "#080c2a", "#1c1150", "#432070"], n: 1 },    // 21:00 ค่ำเต็มที
+  { t: 6,   c: ["#010310", "#060920", "#150d40", "#3a1a60"], n: 1 },    // 24:00 ดึก
+  { t: 9.5, c: ["#01020c", "#050818", "#120b34", "#33204f"], n: 1 },    // 03:30 ดึกลึก
+  { t: 11,  c: ["#050524", "#120e38", "#2c1a52", "#5c2f6e"], n: .8 },   // 05:00 ใกล้รุ่ง อมม่วง
+  { t: 12,  c: ["#0a0a30", "#1c1445", "#3c2164", "#7a4488"], n: .55 },  // 06:00 เช้ามืด ดาวจางลง
+];
+
+function hexLerp(a, b, f) {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+  return `rgb(${pa.map((v, i) => Math.round(v + (pb[i] - v) * f)).join(", ")})`;
+}
+
+function syncSky() {
+  const d = new Date();
+  const hh = d.getHours() + d.getMinutes() / 60;
+  const t = hh >= 18 ? hh - 18 : hh < 6 ? hh + 6 : 12;
+  let a = SKY_STAGES[0], b = SKY_STAGES[SKY_STAGES.length - 1];
+  for (let i = 0; i < SKY_STAGES.length - 1; i++) {
+    if (t >= SKY_STAGES[i].t && t <= SKY_STAGES[i + 1].t) { a = SKY_STAGES[i]; b = SKY_STAGES[i + 1]; break; }
+  }
+  const f = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t);
+  const root = document.documentElement.style;
+  for (let i = 0; i < 4; i++) root.setProperty(`--sky-${i + 1}`, hexLerp(a.c[i], b.c[i], f));
+  state.skyNight = a.n + (b.n - a.n) * f;
+}
+
 /* ---------------- Mood Moon: จันทร์สะท้อนใจเมือง ----------------
  * หมวดคำอธิษฐานของวันนี้ → จันทร์เปล่งสีตามหมวดที่คนขอมากที่สุด
  * จับคู่แบบ substring เพราะภาษาไทยไม่มีช่องว่างคั่นคำ; คำนวณฝั่งผู้ใช้จากข้อมูลชุดเดียวกัน
@@ -100,6 +132,7 @@ const state = {
   lastBoatAt: 0,             // เวลาที่ปล่อยเรือล่าสุด (cooldown)
   flameColor: "gold",        // สีแสงเทียนของกระทงใหม่ (จำไว้ใน lk:flame)
   sceneIndex: 0,             // ธีมฉากปัจจุบัน (จำไว้ใน lk:scene)
+  skyNight: 1,               // ความมืดของคืน 0-1 (ฟ้าเปลี่ยนสีตามเวลาจริง — ใกล้รุ่งดาวจาง)
   unsub: {},
   timers: {},
   retry: {},
@@ -131,7 +164,7 @@ function cacheEls() {
     heartEmoji: $("#heart-emoji"), heartLabel: $("#heart-label"), heartTotal: $("#heart-total"),
     moon: $("#moon"), moonPopover: $("#moon-popover"), moonPopBody: $("#moon-pop-body"),
     scene: $("#scene"),
-    riverReflect: $("#river-reflect"), bankCrowd: $("#bank-crowd"),
+    riverReflect: $("#river-reflect"), bankCrowd: $("#bank-crowd"), heron: $("#heron"),
   });
 }
 
@@ -1572,6 +1605,7 @@ function initScene() {
       size: 14 + Math.random() * 10,
     });
     splashAt(x0, y0, 16 + Math.random() * 8);    // วงน้ำตอนพุ่งขึ้นจากน้ำ
+    heronNotice(x0);                             // นกยางโม่มองตามปลาที่โผล่พ้นน้ำ
   }
 
   function splashAt(x, y, r0) {
@@ -1622,6 +1656,7 @@ function initScene() {
       if (f.y > f.y0 && f.vy > 0) {              // ตกกลับลงน้ำ
         splashAt(f.x, f.y0, f.size * 1.1);
         sound.plop();
+        heronNotice(f.x);                        // นกจ้องจุดที่ปลาตกกลับลงน้ำ
         leapers.splice(i, 1);
       }
     }
@@ -1733,6 +1768,46 @@ function initScene() {
     }
   }
 
+  /* ---------------- นกยางโม่ริมน้ำ — เอี้ยวคอตามปลาโลดกระโดด ---------------- */
+  let heronUntil = 0, heronLock = 0;
+  function heronNotice(x) {
+    if (reduceMotion || !els.heron) return;
+    const now = performance.now();
+    if (now < heronLock) return;
+    const hr = els.heron.getBoundingClientRect();
+    if (Math.abs(hr.left + hr.width / 2 - x) > W * 0.34) return;   // ปลาโลดไกลเกิน ไม่สนใจ
+    heronLock = now + 4000;
+    heronUntil = now + 1400;
+    els.heron.classList.add("h-strike");
+  }
+
+  function updateHeron() {
+    if (heronUntil && performance.now() > heronUntil) {
+      heronUntil = 0;
+      els.heron?.classList.remove("h-strike");
+    }
+  }
+
+  /* ---------------- กระทงมือดชั่วขณะเมื่อล่องผ่านใต้สะพานโค้ง (ฉากตลาดน้ำ) ---------------- */
+  let bridgeScan = 0;
+  function updateBridgeShadow(t) {
+    if (t - bridgeScan < 320) return;
+    bridgeScan = t;
+    if (state.sceneIndex !== 1) {                 // สลับฉากอื่น → ปลดมือดทั้งหมด
+      for (const [, el] of state.rendered) el.classList.remove("kt-under-bridge");
+      return;
+    }
+    const bEl = document.getElementById("market-bridge");
+    if (!bEl) return;
+    const br = bEl.getBoundingClientRect();
+    const x0 = br.left + br.width * 0.14, x1 = br.right - br.width * 0.14;
+    for (const [, el] of state.rendered) {
+      const r = el.getBoundingClientRect();
+      const cx = (r.left + r.right) / 2;
+      el.classList.toggle("kt-under-bridge", cx > x0 && cx < x1);
+    }
+  }
+
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
@@ -1774,8 +1849,9 @@ function initScene() {
 
   function drawStars(t) {
     sctx.clearRect(0, 0, W, H);
+    const night = state.skyNight;
     for (const s of stars) {
-      const a = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.001 * s.speed + s.phase));
+      const a = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.001 * s.speed + s.phase))) * night;
       sctx.globalAlpha = a;
       sctx.fillStyle = s.color;
       sctx.beginPath();
@@ -1783,6 +1859,23 @@ function initScene() {
       sctx.fill();
     }
     sctx.globalAlpha = 1;
+  }
+
+  // ดาวทั้งฟ้าสะท้อนบนผิวน้ำ — บีบสั้น + แกว่งตามคลื่น (วาดบน canvas fx เหนือผิวน้ำ)
+  function drawStarReflections(t) {
+    if (reduceMotion) return;
+    const night = state.skyNight;
+    fctx.fillStyle = "#cfe0ff";
+    for (const s of stars) {
+      const a = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.001 * s.speed + s.phase))) * night;
+      const ry = horizon + (horizon - s.y) * 0.42;
+      if (ry > H) continue;
+      fctx.globalAlpha = a * 0.15;
+      fctx.beginPath();
+      fctx.arc(s.x + Math.sin(t * 0.0012 + s.y * 0.045) * 2.2, ry, s.r, 0, Math.PI * 2);
+      fctx.fill();
+    }
+    fctx.globalAlpha = 1;
   }
 
   function drawLantern(l, t) {
@@ -1890,6 +1983,7 @@ function initScene() {
     last = t;
     drawStars(t);
     fctx.clearRect(0, 0, W, H);
+    drawStarReflections(t);
     drawSparkles(t);
     for (const f of fish) {
       f.x += f.vx * f.dir * dt;
@@ -1941,6 +2035,8 @@ function initScene() {
       nextMoth = 12000 + Math.random() * 12000;
     }
     updateMoths(dt, t);
+    updateHeron();
+    updateBridgeShadow(t);
     if (!document.hidden) requestAnimationFrame(frame);
   }
 
@@ -2576,6 +2672,8 @@ function init() {
       if (k?.krathongType === "bread") { turtleFx?.(k); break; }
     }
   }, 12000);
+  syncSky();                                    // ฟ้าตามเวลาจริงของคืน (หัวค่ำ → ดึก → ใกล้รุ่ง)
+  state.timers.sky = setInterval(syncSky, 60000);
   restoreFlame();
   buildTypePicker();
   buildFlamePicker();

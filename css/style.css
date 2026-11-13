@@ -62,7 +62,7 @@ h1, h2 {
   background:
     radial-gradient(ellipse 85% 35% at 50% var(--horizon), rgba(255, 143, 208, .38), transparent 70%),
     radial-gradient(ellipse 60% 40% at 80% 10%, rgba(124, 77, 204, .25), transparent 70%),
-    linear-gradient(180deg, #03051a 0%, #0b1035 26%, #22135a 46%, #4a2275 var(--horizon), #0b1035 100%);
+    linear-gradient(180deg, var(--sky-1, #03051a) 0%, var(--sky-2, #0b1035) 26%, var(--sky-3, #22135a) 46%, var(--sky-4, #4a2275) var(--horizon), #0b1035 100%);
 }
 .layer-stars, .layer-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .layer-stars { z-index: 0; }
@@ -209,6 +209,26 @@ h1, h2 {
   to { transform: rotate(1.3deg); }
 }
 
+/* ================= นกยางโม่ยืนจ้องน้ำริมฝั่ง (เอี้ยวคอตามปลาโลด) ================= */
+.heron {
+  position: absolute; z-index: 2; left: 11%;
+  top: calc(var(--horizon) + .4%); width: clamp(30px, 4.4vw, 56px);
+  pointer-events: none; opacity: .95;
+}
+.heron .h-neck {
+  transform-box: fill-box; transform-origin: 3% 93%;
+  transition: transform .38s cubic-bezier(.55, 0, .65, 1);
+}
+.heron.h-strike .h-neck { transform: rotate(32deg); }
+.heron .h-body {
+  transform-box: fill-box; transform-origin: 50% 100%;
+  animation: heronBreath 4.8s ease-in-out infinite alternate;
+}
+@keyframes heronBreath {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(1.035); }
+}
+
 .temple {
   position: absolute; z-index: 2; left: 0; width: 100%;
   height: clamp(140px, 28vh, 300px);
@@ -282,6 +302,10 @@ h1, h2 {
 }
 .krathong:hover, .krathong:focus-visible,
 .krathong:hover .kt-bob, .krathong:focus-visible .kt-bob { animation-play-state: paused; }
+
+/* กระทงมือดชั่วขณะเมื่อล่องผ่านใต้สะพานโค้ง (ฉากตลาดน้ำ) */
+.krathong .kt-bob { transition: filter .5s ease; }
+.krathong.kt-under-bridge .kt-bob { filter: brightness(.35) saturate(.65); }
 
 .kt-body { position: relative; }
 .kt-bob {
@@ -687,8 +711,9 @@ html.show-mode .wish-ticker { bottom: calc(6px + env(safe-area-inset-bottom)); }
 @media (prefers-reduced-motion: reduce) {
   .krathong { animation: none; transform: translateX(var(--static-x, 40vw)); }
   .wave, .moon-path, .kt-bob, .kt-flame, .kt-glow, .kt-reflection, .moon, .moon-aura,
-  .boat-bob, .boat-paddle, .boat-light, .river-reflect, .bank-person,
+  .boat-bob, .boat-paddle, .boat-light, .river-reflect, .bank-person, .heron .h-body,
   .temple-lights circle, .btn-start, .live-dot, .flame-option[aria-checked="true"] .flame-swatch { animation: none !important; }
+  .heron .h-neck { transition: none; }
   .release-ripple { display: none; }
   .wish-tick { display: none; }
 }

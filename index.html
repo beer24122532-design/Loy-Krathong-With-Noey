@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Charm:wght@700&family=Mitr:wght@400;500;600&family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=10" />
-  <script type="module" src="js/app.js?v=10"></script>
+  <link rel="stylesheet" href="css/style.css?v=11" />
+  <script type="module" src="js/app.js?v=11"></script>
 </head>
 <body>
   <noscript><div class="noscript">กรุณาเปิดใช้งาน JavaScript เพื่อร่วมลอยกระทง</div></noscript>
@@ -95,8 +95,8 @@
         <!-- ท่าไม้ตลอดแนว -->
         <rect x="0" y="228" width="1200" height="12" />
       </g>
-      <!-- สะพานโค้งกลางแม่น้ำ -->
-      <path d="M556 240Q660 122 764 240Z" fill="url(#marketFill)" />
+      <!-- สะพานโค้งกลางแม่น้ำ (กระทงล่องผ่านใต้สะพานจะมือดชั่วขณะ) -->
+      <path id="market-bridge" d="M556 240Q660 122 764 240Z" fill="url(#marketFill)" />
       <g fill="none" stroke="#f5c451" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round">
         <path d="M570 216Q660 116 750 216" />
         <path d="M600 240v-20M660 240v-26M720 240v-20" />
@@ -164,6 +164,22 @@
 
     <!-- เงาผู้ร่วมงานยืนดูกระทงริมฝั่ง (จำนวนตามคนออนไลน์จริง) -->
     <div class="bank-crowd" id="bank-crowd" aria-hidden="true"></div>
+
+    <!-- นกยางโม่ยืนจ้องน้ำริมฝั่ง (เอี้ยวคอตามปลาโลดกระโดด) -->
+    <svg class="heron" id="heron" viewBox="0 0 66 84" aria-hidden="true">
+      <g class="h-body" fill="#0a0620">
+        <rect x="26.5" y="52" width="2.6" height="31" rx="1.3" />
+        <rect x="33.5" y="52" width="2.6" height="31" rx="1.3" />
+        <ellipse cx="30" cy="45" rx="13" ry="9.5" />
+        <path d="M19 41l-9 9 11-1.5Z" />
+      </g>
+      <g class="h-neck" fill="#0a0620">
+        <path d="M35 43C44 42 47 36 47 28C47 23 47 21 48 19L53 19C53 22 52 25 52 29C52 37 48 45 38 47Z" />
+        <ellipse cx="51" cy="18.5" rx="5.4" ry="4.1" />
+        <path d="M55 16.5L65 23L55 21Z" />
+        <circle cx="52" cy="17.5" r="1" fill="#ffd77a" opacity=".85" />
+      </g>
+    </svg>
 
     <!-- แม่น้ำ -->
     <section class="river" id="river" aria-label="แม่น้ำแห่งคำอธิษฐาน">
