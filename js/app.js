@@ -46,9 +46,9 @@ const FLAME_KEYS = Object.keys(FLAME_COLORS);
 
 /* ธีมฉากหลัง (id ต้องตรงกับ <svg> ใน index.html) */
 const SCENES = Object.freeze([
-  { id: "scene-temple", label: "วัดเจดีย์", beam: { x: 520, y: 20 } },    // ยอดเจดีย์กลางฉาก
-  { id: "scene-market", label: "ตลาดน้ำ", beam: { x: 392, y: 120 } },    // ยอดศาลากลาง
-  { id: "scene-port",   label: "เมืองท่า", beam: { x: 1033, y: 62 } },   // ยอดประภาคาร
+  { id: "scene-temple", label: "วัดเจดีย์" },
+  { id: "scene-market", label: "ตลาดน้ำ" },
+  { id: "scene-port",   label: "เมืองท่า" },
 ]);
 
 /* ---------------- Mood Moon: จันทร์สะท้อนใจเมือง ----------------
@@ -131,7 +131,7 @@ function cacheEls() {
     heartEmoji: $("#heart-emoji"), heartLabel: $("#heart-label"), heartTotal: $("#heart-total"),
     moon: $("#moon"), moonPopover: $("#moon-popover"), moonPopBody: $("#moon-pop-body"),
     scene: $("#scene"),
-    riverReflect: $("#river-reflect"), templeBeam: $("#temple-beam"),
+    riverReflect: $("#river-reflect"),
   });
 }
 
@@ -2197,7 +2197,6 @@ function applyScene() {
   });
   if (els.sceneToggle) els.sceneToggle.textContent = `ฉาก: ${scene.label}`;
   syncRiverReflect(scene.id);      // เงาวัดสะท้อนผิวน้ำ
-  positionTempleBeam();            // ลำแสงประภาคารจากยอดหอ
 }
 
 /** เงาวัดสะท้อนผิวน้ำ — คัดลอกเนื้อ svg ของฉากที่ใช้งานอยู่ลงกล่องกลับหัวบนผิวน้ำ */
@@ -2212,23 +2211,6 @@ function syncRiverReflect(sceneId) {
   sv.setAttribute("aria-hidden", "true");
   for (const child of Array.from(active.children)) sv.append(child.cloneNode(true));
   els.riverReflect.replaceChildren(sv);
-}
-
-/** ลำแสงประภาคาร — คำนวณจุดยอดหอจาก viewBox ของฉากที่ใช้งาน (แม่นยำทุกขนาดจอ) */
-function positionTempleBeam() {
-  if (!els.templeBeam) return;
-  const scene = SCENES[state.sceneIndex] || SCENES[0];
-  const active = document.getElementById(scene.id);
-  if (!active || !scene.beam) { els.templeBeam.style.display = "none"; return; }
-  const r = active.getBoundingClientRect();
-  if (r.width < 10 || r.height < 10) { els.templeBeam.style.display = "none"; return; }
-  // คณิตเดียวกับ preserveAspectRatio="xMidYMax slice"
-  const scale = Math.max(r.width / 1200, r.height / 240);
-  const offX = (r.width - 1200 * scale) / 2;
-  const offY = r.height - 240 * scale;
-  els.templeBeam.style.display = "";
-  els.templeBeam.style.left = `${Math.round(r.left + offX + scene.beam.x * scale)}px`;
-  els.templeBeam.style.top = `${Math.round(r.top + offY + scene.beam.y * scale)}px`;
 }
 
 function cycleScene() {
@@ -2354,11 +2336,6 @@ function init() {
       if (k?.krathongType === "bread") { turtleFx?.(k); break; }
     }
   }, 12000);
-  // เลื่อนลำแสงเจดีย์ตามขนาดจอ
-  window.addEventListener("resize", () => {
-    clearTimeout(state.timers.beam);
-    state.timers.beam = setTimeout(positionTempleBeam, 180);
-  });
   restoreFlame();
   buildTypePicker();
   buildFlamePicker();

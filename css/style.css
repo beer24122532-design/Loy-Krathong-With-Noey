@@ -183,26 +183,6 @@ h1, h2 {
   to { transform: scaleY(-1) skewX(1.4deg); }
 }
 
-/* ================= ลำแสงประภาคารจากยอดหอ ================= */
-.temple-beam {
-  position: absolute; z-index: 2;
-  left: 80%; top: 0;                           /* JS ตั้งค่าตามยอดหอของฉากจริง */
-  width: clamp(180px, 44vw, 660px);
-  height: clamp(10px, 2.4vh, 24px);
-  margin-top: calc(clamp(10px, 2.4vh, 24px) / -2);   /* จุดกำเนิดตรงกลางแถบแสง */
-  transform-origin: left center;
-  background: linear-gradient(90deg, rgba(255, 238, 180, .42) 0%, rgba(255, 238, 180, .16) 45%, rgba(255, 238, 180, 0) 100%);
-  clip-path: polygon(0 38%, 0 62%, 100% 96%, 100% 4%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-  animation: beamSweep 9.5s ease-in-out infinite alternate;
-  animation-delay: -3s;
-}
-@keyframes beamSweep {
-  from { transform: rotate(-14deg); }
-  to { transform: rotate(10deg); }
-}
-
 .temple {
   position: absolute; z-index: 2; left: 0; width: 100%;
   height: clamp(140px, 28vh, 300px);
@@ -681,7 +661,7 @@ html.show-mode .wish-ticker { bottom: calc(6px + env(safe-area-inset-bottom)); }
 @media (prefers-reduced-motion: reduce) {
   .krathong { animation: none; transform: translateX(var(--static-x, 40vw)); }
   .wave, .moon-path, .kt-bob, .kt-flame, .kt-glow, .kt-reflection, .moon, .moon-aura,
-  .boat-bob, .boat-paddle, .boat-light, .river-reflect, .temple-beam,
+  .boat-bob, .boat-paddle, .boat-light, .river-reflect,
   .temple-lights circle, .btn-start, .live-dot, .flame-option[aria-checked="true"] .flame-swatch { animation: none !important; }
   .release-ripple { display: none; }
   .wish-tick { display: none; }
